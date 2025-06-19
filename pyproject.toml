@@ -1,0 +1,91 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "notification-app"
+dynamic = ["version"]
+description = "A web application for real-time blog notifications with Azure AD authentication and web push support"
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "MIT" }
+authors = [
+    { name = "vakesz", email = "hello@vakesz.com" },
+]
+keywords = ["flask", "notifications", "azure-ad", "web-push", "blog-monitoring"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Framework :: Flask",
+    "Topic :: Communications",
+    "Topic :: Internet :: WWW/HTTP :: WSGI :: Application",
+]
+dependencies = [
+    "flask>=2.3.3",
+    "jinja2>=3.1.4",
+    "pywebpush>=1.15.0",
+    "requests>=2.32.0",
+    "requests-ntlm>=1.2.0",
+    "python-dotenv>=1.0.1",
+    "werkzeug>=2.3.7",
+    "msal>=1.25.0",
+    "gunicorn>=21.2.0",
+    "beautifulsoup4>=4.12.3",
+    "Flask-WTF>=1.2.1",
+    "python-dateutil>=2.8.3",
+    "apscheduler>=3.11.0",
+    "cryptography>=45.0.4",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=6.0.0",
+    "black>=21.0.0",
+    "flake8>=3.9.0",
+    "mypy>=0.910",
+]
+
+[project.urls]
+Homepage = "https://github.com/vakesz/notification_app"
+Repository = "https://github.com/vakesz/notification_app"
+Documentation = "https://github.com/vakesz/notification_app/blob/main/README.md"
+"Bug Tracker" = "https://github.com/vakesz/notification_app/issues"
+
+[tool.setuptools]
+packages = ["app"]
+include-package-data = true
+
+[tool.setuptools.package-data]
+app = [
+    "web/static/**/*",
+    "web/templates/**/*",
+]
+
+[tool.setuptools.dynamic]
+version = { attr = "app.__version__" }
+
+[tool.black]
+line-length = 88
+target-version = ["py38"]
+include = '\.pyi?$'
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+
+[[tool.mypy.overrides]]
+module = ["flask.*", "werkzeug.*"]
+ignore_missing_imports = true

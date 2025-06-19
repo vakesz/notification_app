@@ -1,0 +1,54 @@
+# Python bytecode and caches
+__pycache__/
+*.pyc
+*.pyo
+
+# Virtual environments
+.venv/
+env/
+venv/
+
+# Distribution/build files
+build/
+dist/
+*.egg-info/
+*.egg
+
+# Logs and databases
+*.log
+*.sqlite3
+*.db
+
+# Environment variables and secrets
+.env
+.env.*
+
+# IDE and editor settings
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Docker artifacts
+*.tar
+
+# Node modules
+node_modules/
+
+# Coverage and test reports
+.coverage
+htmlcov/
+.pytest_cache/
+scripts/
+test/
+
+# Flask instance folder
+instance/
+
+# Static and media uploads
+uploads/
+media/
+
+# OS files
+.DS_Store
+Thumbs.db
