@@ -39,7 +39,6 @@ app.log
 logs/
 *.sqlite3
 *.db
-db/
 *.sqlite
 *.sqlite3
 
