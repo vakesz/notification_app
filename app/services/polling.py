@@ -195,12 +195,16 @@ class PollingService:
             return
 
         self._last_manual_poll = time.time()
-        new_posts = self._poll_once()
-        if new_posts and self.notifier:
-            try:
+        try:
+            new_posts = self._poll_once()
+            if new_posts and self.notifier:
                 self.notifier.create_bulk_notification(new_posts)
-            except (HTTPClientError, ValueError, TypeError, RuntimeError) as e:
-                logger.error("Failed to send notifications: %s", e)
+        except HTTPClientError as e:
+            logger.error("Manual poll failed due to network issue: %s", e)
+            raise
+        except (ValueError, TypeError, RuntimeError) as e:
+            logger.error("Manual poll failed: %s", e)
+            raise
 
     def get_status(self) -> Dict[str, Any]:
         """Return current status of the polling service."""

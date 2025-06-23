@@ -24,6 +24,7 @@ from flask import (
 
 from app.core.utils.session_utils import require_auth, _validate_session
 from app.core.config import Config
+from app.utils.http_client import HTTPClientError
 
 # Blueprint for dashboard routes
 dashboard_bp = Blueprint("dashboard_bp", __name__)
@@ -156,8 +157,13 @@ def dashboard() -> str:
 @require_auth
 def refresh_posts() -> Response:
     """Trigger a dashboard refresh."""
-    current_app.polling_service.poll_now()
-    flash("Refreshing posts...", "info")
+    # TODO: Poll_now could be removed later, and rather should be replaced with APScheduler calls with rate limiting
+    try:
+        current_app.polling_service.poll_now()
+        flash("Refreshing posts...", "info")
+    except Exception as e:
+        logger.error("Manual refresh failed: %s | user=%s", e, _get_user_key(), exc_info=True)
+        flash(f"Refresh failed: {e}", "error")
     return redirect(url_for("dashboard_bp.dashboard"))
 
 
