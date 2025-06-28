@@ -59,7 +59,6 @@ htmlcov/
 .nox/
 coverage.xml
 .cache
-.mypy_cache/
 nosetests.xml
 *.cover
 *.py,cover

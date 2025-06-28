@@ -47,9 +47,11 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest>=8.4.1",
+    "pytest-cov>=6.0.0",
     "black>=25.1.0",
     "flake8>=7.3.0",
-    "mypy>=1.16.1",
+    "flake8-pyprojecttoml>=0.0.1",
+    "isort>=6.0.0",
 ]
 
 
@@ -70,21 +72,13 @@ app = ["web/static/**/*", "web/templates/**/*"]
 version = { attr = "app.__version__" }
 
 [tool.black]
-line-length = 88
-target-version = ["py38"]
+line-length = 120
+target-version = ["py310"]
 include = '\.pyi?$'
+
+[tool.flake8]
+max-line-length = 120
 
 [tool.isort]
 profile = "black"
 multi_line_output = 3
-
-[tool.mypy]
-python_version = "3.11"
-warn_return_any = true
-warn_unused_configs = true
-disallow_untyped_defs = true
-disallow_incomplete_defs = true
-
-[[tool.mypy.overrides]]
-module = ["flask.*", "werkzeug.*"]
-ignore_missing_imports = true

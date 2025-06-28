@@ -1,20 +1,21 @@
 """Authentication Blueprint for handling user login, logout, and session management."""
 
-import secrets
 import logging
+import secrets
 import time
+
 from flask import (
     Blueprint,
-    render_template,
-    session,
-    redirect,
-    url_for,
-    request,
-    flash,
     current_app,
+    flash,
+    redirect,
+    render_template,
+    request,
+    session,
+    url_for,
 )
 
-from app.core.utils.session_utils import _validate_session, _token_lock
+from app.core.utils.session_utils import _token_lock, _validate_session
 
 # Blueprint for authentication routes
 auth_bp = Blueprint("auth_bp", __name__)
@@ -67,9 +68,7 @@ def login_page():
         return _auth_redirect()
     if session.get("user") or request.cookies.get("access_token"):
         _clear_session("Your session has expired. Please log in again.")
-    return render_template(
-        "login.html", app_name=current_app.config.get("APP_NAME", "App")
-    )
+    return render_template("login.html", app_name=current_app.config.get("APP_NAME", "App"))
 
 
 @auth_bp.route("/auth/login")
@@ -87,9 +86,7 @@ def auth_callback():
     """Handle OAuth callback and establish user session."""
 
     def _fail(message: str):
-        logger.error(
-            "%s | endpoint=%s | ip=%s", message, request.path, request.remote_addr
-        )
+        logger.error("%s | endpoint=%s | ip=%s", message, request.path, request.remote_addr)
         flash(message, "error")
         return redirect(url_for("auth_bp.login"))
 
@@ -160,15 +157,9 @@ def logout():
     _clear_session()
     logger.info("User logged out | user=%s | ip=%s", user_name, ip)
 
-    logout_url = current_app.auth_service.get_logout_url(
-        url_for("auth_bp.login", _external=True)
-    )
+    logout_url = current_app.auth_service.get_logout_url(url_for("auth_bp.login", _external=True))
     response = redirect(logout_url)
-    response.set_cookie(
-        "access_token", "", expires=0, httponly=True, secure=True, samesite="Strict"
-    )
-    response.set_cookie(
-        "refresh_token", "", expires=0, httponly=True, secure=True, samesite="Strict"
-    )
+    response.set_cookie("access_token", "", expires=0, httponly=True, secure=True, samesite="Strict")
+    response.set_cookie("refresh_token", "", expires=0, httponly=True, secure=True, samesite="Strict")
     flash("Successfully logged out!", "info")
     return response

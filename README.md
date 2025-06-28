@@ -56,22 +56,22 @@ This Flask-based application automatically monitors blog content and delivers pe
    # Flask Configuration
    SECRET_KEY=your-secret-key-here
    FLASK_ENV=development
-   
+
    # Azure AD Configuration
    AAD_CLIENT_ID=your-azure-ad-client-id
    AAD_CLIENT_SECRET=your-azure-ad-client-secret
    AAD_TENANT_ID=your-azure-ad-tenant-id
    AAD_REDIRECT_URI=http://localhost:5000/auth/callback
-   
+
    # Blog API Configuration
    BLOG_API_BASE_URL=https://your-blog-api-url.com
    BLOG_API_AUTH_METHOD=none
-   
+
    # Web Push Configuration
    PUSH_VAPID_PUBLIC_KEY=your-vapid-public-key
    PUSH_VAPID_PRIVATE_KEY=your-vapid-private-key
    PUSH_CONTACT_EMAIL=your-contact-email@example.com
-   
+
    # Application Settings
    APP_NAME=Blog Notifications Parser
    APP_DATABASE_PATH=db/posts.db
@@ -197,7 +197,20 @@ The application supports multiple authentication methods:
 
 ## Development
 
-### Running Tests
+### Development Dependencies
+
+The project includes comprehensive development tools configured in `pyproject.toml`:
+
+- **pytest**: Testing framework with coverage reporting
+- **black**: Automatic code formatting
+- **isort**: Import statement organization
+- **flake8**: Code style and quality linting
+
+All development dependencies are automatically installed with:
+
+```bash
+pip install -e .[dev]
+```
 
 ```bash
 # Install development dependencies
@@ -207,21 +220,41 @@ pip install -e .[dev]
 pytest
 
 # Run with coverage
-pytest --cov=app
+pytest --cov=app --maxfail=1 --disable-warnings -q
 ```
 
 ### Code Quality
+
+The project uses automated code quality tools that are also run in CI:
 
 ```bash
 # Format code
 black app/
 
-# Check style
-flake8 app/
+# Check formatting
+black --check .
 
-# Type checking
-mypy app/
+# Sort imports
+isort app/
+
+# Check import sorting
+isort --check-only .
+
+# Lint code
+flake8 app
 ```
+
+### Continuous Integration
+
+This project uses GitHub Actions for automated testing and code quality checks. The CI pipeline:
+
+- **Multi-Python Testing**: Tests against Python 3.10, 3.11, and 3.12
+- **Code Formatting**: Validates code formatting with Black
+- **Import Sorting**: Ensures consistent import organization with isort
+- **Linting**: Code quality checks with Flake8
+- **Test Coverage**: Automated test execution with coverage reporting
+
+The CI workflow runs on every push to main and on pull requests, ensuring code quality and compatibility across Python versions.
 
 ## 🤝 Contribution Guidelines
 

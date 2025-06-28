@@ -1,10 +1,10 @@
 """Configuration management for the notification app."""
 
-import os
 import logging
+import os
 from urllib.parse import urlparse
-from dotenv import load_dotenv
 
+from dotenv import load_dotenv
 
 logger = logging.getLogger(__name__)
 
@@ -26,9 +26,7 @@ class Config:
     AAD_CLIENT_SECRET = os.environ.get("AAD_CLIENT_SECRET")
     AAD_TENANT_ID = os.environ.get("AAD_TENANT_ID")
     AAD_REDIRECT_URI = os.environ.get("AAD_REDIRECT_URI")
-    AUTHORITY = (
-        f"https://login.microsoftonline.com/{AAD_TENANT_ID}" if AAD_TENANT_ID else None
-    )
+    AUTHORITY = f"https://login.microsoftonline.com/{AAD_TENANT_ID}" if AAD_TENANT_ID else None
     SCOPE = ["User.Read"]
 
     # Application
@@ -92,9 +90,7 @@ class Config:
         # Validate URLs
         if cls.BLOG_API_URL:
             if not cls.BLOG_API_URL.startswith(("http://", "https://")):
-                raise ValueError(
-                    f"BLOG_API_URL must start with http:// or https://: {cls.BLOG_API_URL}"
-                )
+                raise ValueError(f"BLOG_API_URL must start with http:// or https://: {cls.BLOG_API_URL}")
 
             # Validate URL format
             try:
@@ -102,9 +98,7 @@ class Config:
                 if not parsed.netloc:
                     raise ValueError(f"Invalid BLOG_API_URL format: {cls.BLOG_API_URL}")
             except Exception as e:
-                raise ValueError(
-                    f"Invalid BLOG_API_URL format: {cls.BLOG_API_URL}"
-                ) from e
+                raise ValueError(f"Invalid BLOG_API_URL format: {cls.BLOG_API_URL}") from e
 
         # Validate numeric settings
         if cls.HTTP_TIMEOUT < 1:
@@ -118,9 +112,7 @@ class Config:
         if cls.POLLING_BACKOFF_FACTOR < 1:
             raise ValueError("POLLING_BACKOFF_FACTOR must be at least 1")
         if cls.POLLING_MAX_BACKOFF < cls.POLLING_INTERVAL_MINUTES:
-            raise ValueError(
-                "POLLING_MAX_BACKOFF must be greater than POLLING_INTERVAL_MIN"
-            )
+            raise ValueError("POLLING_MAX_BACKOFF must be greater than POLLING_INTERVAL_MIN")
         if cls.AUTH_TOKEN_TTL_DAYS < 1:
             raise ValueError("AUTH_TOKEN_TTL_DAYS must be at least 1 day")
         if cls.PUSH_TTL < 0:
