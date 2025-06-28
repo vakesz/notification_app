@@ -199,14 +199,30 @@ class DatabaseManager:
 
     def add_post(self, post: Post) -> bool:
         """
-        Insert or update a post record.
+        Insert or update a post record only if fields have changed.
 
-        Args:
-            post: Post model instance to save.
-
-        Returns:
-            bool: True if successful, False otherwise.
+        Returns True if a new post was inserted or an existing post was updated; False if no change.
         """
+        existing = self.get_post(post.id)
+        # Determine if update is needed
+        if existing:
+            unchanged = (
+                existing.title == post.title
+                and existing.content == post.content
+                and existing.publish_date == post.publish_date
+                and existing.location == post.location
+                and existing.department == post.department
+                and existing.category == post.category
+                and existing.link == post.link
+                and existing.is_urgent == post.is_urgent
+                and existing.likes == post.likes
+                and existing.comments == post.comments
+                and existing.has_image == post.has_image
+                and existing.image_url == post.image_url
+            )
+            if unchanged:
+                return False
+        # Insert new or replace changed post
         sql = (
             "INSERT OR REPLACE INTO posts ("
             "id, title, content, publish_date, location, department,"
@@ -228,7 +244,7 @@ class DatabaseManager:
             post.comments,
             int(post.has_image),
             post.image_url,
-            now,
+            existing.created_at.isoformat() if existing and existing.created_at else now,
             now,
         )
         result = self._execute(sql, params)
@@ -237,17 +253,41 @@ class DatabaseManager:
         return bool(result)
 
     def add_posts_bulk(self, posts: List[Post]) -> List[Post]:
-        """Insert multiple posts in a single transaction ignoring duplicates."""
-        added: List[Post] = []
-        sql = (
-            "INSERT OR IGNORE INTO posts ("
-            "id, title, content, publish_date, location, department,"
-            " category, link, is_urgent, likes, comments, has_image, image_url,"
-            " created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-        )
-        now = datetime.utcnow().isoformat()
+        """Insert multiple posts only if new or changed. Return list of inserted/updated posts."""
+        updated: List[Post] = []
         with self._transaction() as conn:
             for post in posts:
+                existing = self.get_post(post.id)
+                should_update = False
+                if not existing:
+                    should_update = True
+                else:
+                    # compare fields
+                    if (
+                        existing.title != post.title
+                        or existing.content != post.content
+                        or existing.publish_date != post.publish_date
+                        or existing.location != post.location
+                        or existing.department != post.department
+                        or existing.category != post.category
+                        or existing.link != post.link
+                        or existing.is_urgent != post.is_urgent
+                        or existing.likes != post.likes
+                        or existing.comments != post.comments
+                        or existing.has_image != post.has_image
+                        or existing.image_url != post.image_url
+                    ):
+                        should_update = True
+                if not should_update:
+                    continue
+                # perform insert or replace
+                sql = (
+                    "INSERT OR REPLACE INTO posts ("
+                    "id, title, content, publish_date, location, department,"
+                    " category, link, is_urgent, likes, comments, has_image, image_url,"
+                    " created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                )
+                now = datetime.utcnow().isoformat()
                 params = (
                     post.id,
                     post.title,
@@ -262,17 +302,14 @@ class DatabaseManager:
                     post.comments,
                     int(post.has_image),
                     post.image_url,
-                    now,
+                    existing.created_at.isoformat() if existing and existing.created_at else now,
                     now,
                 )
-                try:
-                    conn.execute(sql, params)
-                    if conn.total_changes > len(added):
-                        added.append(post)
-                        self._add_post_locations(post.id, [post.location], conn)
-                except sqlite3.IntegrityError:
-                    continue
-        return added
+                conn.execute(sql, params)
+                self._add_post_locations(post.id, [post.location], conn)
+                updated.append(post)
+        return updated
+
 
     def get_post(self, post_id: str) -> Optional[Post]:
         """

@@ -57,6 +57,8 @@ def rate_limit(calls: int, period: int):
 class PollingService:
     """Continuously polls a blog for new posts and records notifications."""
 
+    SCHEDULER_NAME = "polling_service"
+
     def __init__(
         self,
         blog_url: str,
@@ -103,6 +105,7 @@ class PollingService:
             self._poll_job,
             "interval",
             seconds=self.interval,
+            id=self.SCHEDULER_NAME,
             misfire_grace_time=max(60, self.interval // 2),
         )
         self.scheduler.add_job(
@@ -143,7 +146,7 @@ class PollingService:
         except (ValueError, TypeError, RuntimeError) as e:
             logger.error("Cleanup failed: %s", e)
 
-    @rate_limit(calls=10, period=60)
+    @rate_limit(calls=1, period=60)
     def _poll_once(self) -> List[Post]:
         """Fetch and process new posts once.
 
@@ -187,24 +190,15 @@ class PollingService:
 
         return new_posts
 
-    def poll_now(self) -> None:
-        """Manually trigger a poll immediately."""
-        logger.info("Manual poll triggered")
-        if time.time() - self._last_manual_poll < self.rate_limit_period:
-            logger.info("Manual poll ignored due to cooldown")
+    def manual_poll(self) -> None:
+        """Trigger a manual poll, and the scheduler itself will handle it."""
+        job = self.scheduler.get_job(self.SCHEDULER_NAME)
+        if not job:
+            logger.error("No job with id %s found", self.SCHEDULER_NAME)
             return
-
-        self._last_manual_poll = time.time()
-        try:
-            new_posts = self._poll_once()
-            if new_posts and self.notifier:
-                self.notifier.create_bulk_notification(new_posts)
-        except HTTPClientError as e:
-            logger.error("Manual poll failed due to network issue: %s", e)
-            raise
-        except (ValueError, TypeError, RuntimeError) as e:
-            logger.error("Manual poll failed: %s", e)
-            raise
+        # schedule it to run immediately:
+        job.modify(next_run_time=datetime.utcnow())
+        logger.info("Manual poll triggered")
 
     def get_status(self) -> Dict[str, Any]:
         """Return current status of the polling service."""

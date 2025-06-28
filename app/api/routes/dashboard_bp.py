@@ -154,12 +154,12 @@ def dashboard() -> str:
 
 
 @dashboard_bp.route("/refresh")
+@flask_limiter.limit("1/60")  # Limit to 1 refresh per minute
 @require_auth
 def refresh_posts() -> Response:
     """Trigger a dashboard refresh."""
-    # TODO: Poll_now could be removed later, and rather should be replaced with APScheduler calls with rate limiting
     try:
-        current_app.polling_service.poll_now()
+        current_app.polling_service.manual_poll()
         flash("Refreshing posts...", "info")
     except Exception as e:
         logger.error("Manual refresh failed: %s | user=%s", e, _get_user_key(), exc_info=True)

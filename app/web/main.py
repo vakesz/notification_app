@@ -6,6 +6,8 @@ from logging import Formatter
 from logging.handlers import RotatingFileHandler
 from flask import Flask, request, jsonify, session
 from flask_wtf import CSRFProtect
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 from app.core.config import config
 from app.core.security import AuthService
@@ -47,6 +49,7 @@ def create_app(config_name: str = "default") -> Flask:
     setup_logging()
 
     flask_app = Flask(__name__)
+    flask_limiter = Limiter(key_func=get_remote_address, app=flask_app)
     CSRFProtect(flask_app)
 
     # Load and validate config
