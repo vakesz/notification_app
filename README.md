@@ -1,4 +1,7 @@
-# Blog Notification App
+# Blog Notifications App
+
+[![Build Status](https://github.com/vakesz/notification_app/actions/workflows/ci.yml/badge.svg)](https://github.com/vakesz/notification_app/actions)
+[![Coverage Status](https://coveralls.io/repos/github/vakesz/notification_app/badge.svg?branch=main)](https://coveralls.io/github/vakesz/notification_app?branch=main)
 
 A real-time web application for monitoring blog posts with intelligent notifications, Azure AD authentication, and web push support.
 
