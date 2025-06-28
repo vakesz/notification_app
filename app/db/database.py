@@ -79,10 +79,7 @@ class DatabaseManager:
         ),
         (
             "notification_keywords",
-            (
-                "user_key TEXT NOT NULL, keyword TEXT NOT NULL,"
-                " PRIMARY KEY(user_key, keyword)"
-            ),
+            ("user_key TEXT NOT NULL, keyword TEXT NOT NULL," " PRIMARY KEY(user_key, keyword)"),
         ),
         (
             "keywords",
@@ -167,16 +164,10 @@ class DatabaseManager:
                 conn.execute(f"CREATE TABLE IF NOT EXISTS {table} ({definition})")
             self._ensure_column(conn, "auth_tokens", "user_id", "TEXT")
             self._ensure_column(conn, "auth_tokens", "last_accessed", "TEXT")
-            conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_posts_created ON posts(created_at)"
-            )
-            conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_auth_tokens_user ON auth_tokens(user_id)"
-            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_posts_created ON posts(created_at)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_auth_tokens_user ON auth_tokens(user_id)")
 
-    def _ensure_column(
-        self, conn: sqlite3.Connection, table: str, column: str, definition: str
-    ) -> None:
+    def _ensure_column(self, conn: sqlite3.Connection, table: str, column: str, definition: str) -> None:
         cols = [row[1] for row in conn.execute(f"PRAGMA table_info({table})")]
         if column not in cols:
             conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
@@ -297,9 +288,7 @@ class DatabaseManager:
         Returns:
             List[Post]: List of retrieved posts.
         """
-        rows = self._fetch_all(
-            "SELECT * FROM posts ORDER BY publish_date DESC LIMIT ?", (limit,)
-        )
+        rows = self._fetch_all("SELECT * FROM posts ORDER BY publish_date DESC LIMIT ?", (limit,))
         return [Post.from_dict(dict(r)) for r in rows]
 
     def add_notification(self, notif: Notification) -> bool:
@@ -329,9 +318,7 @@ class DatabaseManager:
         )
         return bool(self._execute(sql, params))
 
-    def get_notifications(
-        self, limit: int = 10, include_expired: bool = False
-    ) -> List[Notification]:
+    def get_notifications(self, limit: int = 10, include_expired: bool = False) -> List[Notification]:
         """
         Retrieve recent notifications, optionally including expired ones.
 
@@ -368,9 +355,7 @@ class DatabaseManager:
         Returns:
             int: Number of deleted rows.
         """
-        cursor = self._execute(
-            "DELETE FROM notifications WHERE expires_at <= datetime('now')"
-        )
+        cursor = self._execute("DELETE FROM notifications WHERE expires_at <= datetime('now')")
         return cursor.rowcount if cursor else 0
 
     def get_notification_summary(self) -> Dict[str, int]:
@@ -393,9 +378,7 @@ class DatabaseManager:
             else {"total": 0, "unread": 0, "urgent_unread": 0}
         )
 
-    def add_push_subscription(
-        self, info: Dict[str, Any], user_key: Optional[str] = None
-    ) -> bool:
+    def add_push_subscription(self, info: Dict[str, Any], user_key: Optional[str] = None) -> bool:
         """
         Insert or update a push subscription record.
 
@@ -422,9 +405,7 @@ class DatabaseManager:
             )
         )
 
-    def push_subscription_exists(
-        self, endpoint: str, user_key: Optional[str] = None
-    ) -> bool:
+    def push_subscription_exists(self, endpoint: str, user_key: Optional[str] = None) -> bool:
         """Check if a push subscription already exists for the given endpoint and user."""
         params = [endpoint]
         query = "SELECT 1 FROM push_subscriptions WHERE endpoint = ?"
@@ -444,11 +425,7 @@ class DatabaseManager:
         Returns:
             bool: True if deletion succeeds.
         """
-        return bool(
-            self._execute(
-                "DELETE FROM push_subscriptions WHERE endpoint = ?", (info["endpoint"],)
-            )
-        )
+        return bool(self._execute("DELETE FROM push_subscriptions WHERE endpoint = ?", (info["endpoint"],)))
 
     def get_all_push_subscriptions(self) -> List[Dict[str, Any]]:
         """
@@ -457,9 +434,7 @@ class DatabaseManager:
         Returns:
             List[Dict[str, Any]]: Active subscriptions with endpoint and keys.
         """
-        rows = self._fetch_all(
-            "SELECT endpoint, auth, p256dh FROM push_subscriptions WHERE is_active = 1"
-        )
+        rows = self._fetch_all("SELECT endpoint, auth, p256dh FROM push_subscriptions WHERE is_active = 1")
         return [
             {
                 "endpoint": r["endpoint"],
@@ -495,9 +470,7 @@ class DatabaseManager:
         Returns:
             Optional[str]: JSON settings if present, else None.
         """
-        row = self._fetch_one(
-            "SELECT settings FROM notification_settings WHERE user_key = ?", (user_key,)
-        )
+        row = self._fetch_one("SELECT settings FROM notification_settings WHERE user_key = ?", (user_key,))
         return row["settings"] if row else None
 
     def get_all_notification_settings(self) -> Dict[str, str]:
@@ -510,9 +483,7 @@ class DatabaseManager:
         rows = self._fetch_all("SELECT user_key, settings FROM notification_settings")
         return {r["user_key"]: r["settings"] for r in rows}
 
-    def update_notification_settings(
-        self, user_key: str, settings: Dict[str, Any]
-    ) -> bool:
+    def update_notification_settings(self, user_key: str, settings: Dict[str, Any]) -> bool:
         """
         Upsert notification settings for a user.
 
@@ -568,9 +539,7 @@ class DatabaseManager:
             return
         with self._transaction() as conn:
             for kw in keywords:
-                conn.execute(
-                    "INSERT OR IGNORE INTO keywords (keyword) VALUES (?)", (kw,)
-                )
+                conn.execute("INSERT OR IGNORE INTO keywords (keyword) VALUES (?)", (kw,))
 
     def get_all_keywords(self) -> List[str]:
         """List all distinct keywords in the database."""
@@ -584,9 +553,7 @@ class DatabaseManager:
         Returns:
             List[str]: Sorted list of locations.
         """
-        rows = self._fetch_all(
-            "SELECT DISTINCT location FROM posts WHERE location <> '' ORDER BY location"
-        )
+        rows = self._fetch_all("SELECT DISTINCT location FROM posts WHERE location <> '' ORDER BY location")
         return [r["location"] for r in rows]
 
     # --- Token Storage ---
@@ -604,9 +571,7 @@ class DatabaseManager:
 
     def get_token(self, session_id: str) -> Optional[str]:
         """Retrieve the access token for a session ID."""
-        row = self._fetch_one(
-            "SELECT token FROM auth_tokens WHERE session_id = ?", (session_id,)
-        )
+        row = self._fetch_one("SELECT token FROM auth_tokens WHERE session_id = ?", (session_id,))
         if row:
             self._safe_execute(
                 "UPDATE auth_tokens SET last_accessed=CURRENT_TIMESTAMP WHERE session_id = ?",
@@ -617,9 +582,7 @@ class DatabaseManager:
 
     def delete_token(self, session_id: str) -> bool:
         """Delete the access token for a session ID."""
-        return bool(
-            self._execute("DELETE FROM auth_tokens WHERE session_id = ?", (session_id,))
-        )
+        return bool(self._execute("DELETE FROM auth_tokens WHERE session_id = ?", (session_id,)))
 
     def cleanup_old_tokens(self, days: int) -> int:
         """Delete tokens that haven't been accessed in the last `days` days."""
@@ -656,9 +619,7 @@ class DatabaseManager:
                     "id": post.id,
                     "title": post.title,
                     "content": post.content,
-                    "publish_date": (
-                        post.publish_date.isoformat() if post.publish_date else None
-                    ),
+                    "publish_date": (post.publish_date.isoformat() if post.publish_date else None),
                     "category": post.category,
                     "department": post.department,
                     "location": post.location,
@@ -668,12 +629,8 @@ class DatabaseManager:
                     "likes": post.likes,
                     "comments": post.comments,
                     "link": post.link,
-                    "created_at": (
-                        post.created_at.isoformat() if post.created_at else None
-                    ),
-                    "updated_at": (
-                        post.updated_at.isoformat() if post.updated_at else None
-                    ),
+                    "created_at": (post.created_at.isoformat() if post.created_at else None),
+                    "updated_at": (post.updated_at.isoformat() if post.updated_at else None),
                 }
                 posts_data.append(post_dict)
 
