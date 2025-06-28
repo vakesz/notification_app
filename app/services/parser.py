@@ -7,8 +7,9 @@ from typing import List, Optional
 
 from bs4 import BeautifulSoup
 from dateutil import parser as date_parser
-from app.db.models import Post
+
 from app.core.config import Config
+from app.db.models import Post
 
 logger = logging.getLogger(__name__)
 
@@ -24,9 +25,7 @@ class ContentParser:
 
         posts = []
         soup = BeautifulSoup(html_content, "html.parser")
-        post_blocks = soup.find_all(
-            "div", class_=lambda c: c and c.startswith("one_block")
-        )
+        post_blocks = soup.find_all("div", class_=lambda c: c and c.startswith("one_block"))
 
         logger.debug("Found %d post blocks", len(post_blocks))
 
@@ -60,11 +59,7 @@ class ContentParser:
 
             link_tag = block.find("a", onmouseover=True)
             blog_url = Config.BLOG_API_URL.rstrip("/")
-            link = (
-                f"{blog_url}/{link_tag['href'].lstrip('/')}"
-                if link_tag and link_tag.has_attr("href")
-                else ""
-            )
+            link = f"{blog_url}/{link_tag['href'].lstrip('/')}" if link_tag and link_tag.has_attr("href") else ""
 
             is_urgent = bool(block.find(class_="urgent"))
 
@@ -114,9 +109,7 @@ class ContentParser:
 
         # Fallback if format changes
         date_match = re.search(r"\(([^)]*\d{4}[^)]*)\)", text)
-        publish_date = (
-            self._clean_text(date_match.group(1)) if date_match else "Unknown"
-        )
+        publish_date = self._clean_text(date_match.group(1)) if date_match else "Unknown"
 
         return "Unknown", "", "", publish_date
 
@@ -124,9 +117,7 @@ class ContentParser:
         """Extract image information."""
         image_link = block.find("a", class_="fancybox image")
         if image_link and image_link.has_attr("href"):
-            full_url = (
-                f"{Config.BLOG_API_URL.rstrip('/')}/{image_link['href'].lstrip('/')}"
-            )
+            full_url = f"{Config.BLOG_API_URL.rstrip('/')}/{image_link['href'].lstrip('/')}"
             return True, full_url
         return False, ""
 

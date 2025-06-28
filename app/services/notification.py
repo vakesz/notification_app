@@ -1,16 +1,16 @@
 """Notification service for desktop notifications."""
 
+import json
 import logging
-from typing import List, Dict, Any, Optional, Set
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
-import json
+from typing import Any, Dict, List, Optional, Set
 
 from pywebpush import WebPushException, webpush
-from app.core.config import Config
 
-from app.db.models import Post, Notification
+from app.core.config import Config
 from app.db.database import DatabaseManager
+from app.db.models import Notification, Post
 
 logger = logging.getLogger(__name__)
 
@@ -110,9 +110,7 @@ class NotificationService:
                     logger.error("Invalid update interval: %s", interval)
                     return False
             except (ValueError, TypeError):
-                logger.error(
-                    "Invalid update interval type: %s", settings["updateInterval"]
-                )
+                logger.error("Invalid update interval type: %s", settings["updateInterval"])
                 return False
 
             language = settings.get("language", "en")
@@ -124,16 +122,12 @@ class NotificationService:
             if not isinstance(keywords, list):
                 logger.error("Invalid keywords type")
                 return False
-            if len(keywords) > 20 or any(
-                not isinstance(k, str) or len(k) < 3 for k in keywords
-            ):
+            if len(keywords) > 20 or any(not isinstance(k, str) or len(k) < 3 for k in keywords):
                 logger.error("Keyword validation failed")
                 return False
 
             keyword_filter = settings.get("keywordFilter", {"enabled": False})
-            if not isinstance(keyword_filter, dict) or not isinstance(
-                keyword_filter.get("enabled"), bool
-            ):
+            if not isinstance(keyword_filter, dict) or not isinstance(keyword_filter.get("enabled"), bool):
                 logger.error("Invalid keyword filter settings")
                 return False
 
@@ -267,9 +261,7 @@ class NotificationService:
                 "active_subscriptions": 0,
             }
 
-    def send_push_notification(
-        self, subscription: Dict[str, Any], notification: Notification
-    ) -> bool:
+    def send_push_notification(self, subscription: Dict[str, Any], notification: Notification) -> bool:
         """Send a push notification to a subscription."""
 
         endpoint = subscription.get("endpoint")

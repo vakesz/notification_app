@@ -1,8 +1,8 @@
 """Data models for the notification app."""
 
+import hashlib
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-import hashlib
 from typing import Any, Dict, Optional
 
 
@@ -31,9 +31,7 @@ class Post:
         for field_name in ("title", "content", "location", "department", "category"):
             value = getattr(self, field_name)
             if not isinstance(value, str) or not value.strip():
-                raise ValueError(
-                    f"{field_name.capitalize()} is required and must be a non-empty string"
-                )
+                raise ValueError(f"{field_name.capitalize()} is required and must be a non-empty string")
 
         if not isinstance(self.publish_date, datetime):
             raise ValueError("publish_date must be a datetime object")

@@ -9,6 +9,8 @@ __all__ = ["create_app", "__version__"]
 
 def create_app(config_name: str = "default"):
     """Factory function wrapper for the Flask application."""
-    from .web.main import create_app as _create_app  # pylint:disable=import-outside-toplevel
+    from .web.main import (
+        create_app as _create_app,  # pylint:disable=import-outside-toplevel
+    )
 
     return _create_app(config_name)

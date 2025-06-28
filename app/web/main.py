@@ -1,32 +1,31 @@
 """Main entry point for the Flask web application."""
 
-import os
 import logging
+import os
 from logging import Formatter
 from logging.handlers import RotatingFileHandler
-from flask import Flask, request, jsonify, session
-from flask_wtf import CSRFProtect
 
-from app.core.config import config
-from app.core.security import AuthService
-from app.core.blog_security import BlogAuthentication
-from app.db.database import DatabaseManager
-from app.services.parser import ContentParser
-from app.utils.http_client import BlogClient
-from app.services.polling import PollingService
-from app.services.notification import NotificationService
+from flask import Flask, jsonify, request, session
+from flask_wtf import CSRFProtect  # type: ignore
+
 from app.api.routes.auth_bp import auth_bp
 from app.api.routes.dashboard_bp import dashboard_bp
+from app.core.blog_security import BlogAuthentication
+from app.core.config import config
+from app.core.security import AuthService
 from app.core.utils.session_utils import access_token_storage
+from app.db.database import DatabaseManager
+from app.services.notification import NotificationService
+from app.services.parser import ContentParser
+from app.services.polling import PollingService
+from app.utils.http_client import BlogClient
 
 
 def setup_logging(log_path: str = "app.log") -> None:
     """
     Configure root logger with console and rotating file handlers.
     """
-    log_formatter = Formatter(
-        "%(asctime)s %(levelname)s %(message)s %(filename)s:%(lineno)d"
-    )
+    log_formatter = Formatter("%(asctime)s %(levelname)s %(message)s %(filename)s:%(lineno)d")
     root = logging.getLogger()
     env = os.getenv("FLASK_ENV", "default").lower()
     root.setLevel(logging.DEBUG if env in ("development", "default") else logging.INFO)
@@ -35,9 +34,7 @@ def setup_logging(log_path: str = "app.log") -> None:
     console.setFormatter(log_formatter)
     root.addHandler(console)
 
-    file_handler = RotatingFileHandler(
-        log_path, maxBytes=2 * 1024 * 1024, backupCount=5
-    )
+    file_handler = RotatingFileHandler(log_path, maxBytes=2 * 1024 * 1024, backupCount=5)
     file_handler.setFormatter(log_formatter)
     root.addHandler(file_handler)
 
@@ -89,13 +86,13 @@ def create_app(config_name: str = "default") -> Flask:
     )
 
     # Attach to app context
-    flask_app.auth_service = auth_service
-    flask_app.database_manager = db_manager
-    flask_app.content_parser = parser
-    flask_app.blog_client = http_client
-    flask_app.notification_service = notifier
-    flask_app.polling_service = poller
-    flask_app.access_token_storage = access_token_storage
+    flask_app.auth_service = auth_service  # type: ignore[attr-defined]
+    flask_app.database_manager = db_manager  # type: ignore[attr-defined]
+    flask_app.content_parser = parser  # type: ignore[attr-defined]
+    flask_app.blog_client = http_client  # type: ignore[attr-defined]
+    flask_app.notification_service = notifier  # type: ignore[attr-defined]
+    flask_app.polling_service = poller  # type: ignore[attr-defined]
+    flask_app.access_token_storage = access_token_storage  # type: ignore[attr-defined]
 
     # Start polling
     flask_app.logger.info("Starting polling service...")
@@ -128,7 +125,7 @@ def create_app(config_name: str = "default") -> Flask:
         )
 
     @flask_app.route("/subscribe", methods=["POST"])
-    def subscribe():
+    def subscribe() -> tuple[dict | str, int]:
         sub = request.get_json(silent=True)
         if not _validate_subscription(sub):
             return jsonify({"error": "Invalid subscription object"}), 400
@@ -136,9 +133,7 @@ def create_app(config_name: str = "default") -> Flask:
         user = session.get("user") or {}
         user_key = user.get("preferred_username") or user.get("name")
 
-        if flask_app.database_manager.push_subscription_exists(
-            sub["endpoint"], user_key
-        ):
+        if flask_app.database_manager.push_subscription_exists(sub["endpoint"], user_key):
             flask_app.database_manager.update_subscription_last_used(sub["endpoint"])
             flask_app.logger.info(
                 "Subscription already exists: %s | user=%s",
@@ -148,13 +143,11 @@ def create_app(config_name: str = "default") -> Flask:
             return jsonify({"message": "Subscription already active"}), 200
 
         flask_app.database_manager.add_push_subscription(sub, user_key)
-        flask_app.logger.info(
-            "Subscription added: %s | user=%s", sub["endpoint"], user_key
-        )
+        flask_app.logger.info("Subscription added: %s | user=%s", sub["endpoint"], user_key)
         return jsonify({"message": "Subscription successful"}), 201
 
     @flask_app.route("/notify", methods=["GET"])
-    def notify():
+    def notify() -> tuple[dict, int]:
         """Send a test notification to all push subscriptions."""
         if flask_app.notification_service.create_test_notification():
             flask_app.logger.info("Test notification sent successfully")
@@ -165,7 +158,7 @@ def create_app(config_name: str = "default") -> Flask:
 
     # API for register/deregister
     @flask_app.route("/api/notifications/register", methods=["POST"])
-    def api_register():
+    def api_register() -> tuple[dict, int]:
         try:
             sub = request.get_json(silent=True)
             if not sub:
@@ -177,7 +170,7 @@ def create_app(config_name: str = "default") -> Flask:
             return jsonify({"error": str(e)}), 500
 
     @flask_app.route("/api/notifications/deregister", methods=["POST"])
-    def api_deregister():
+    def api_deregister() -> tuple[dict, int]:
         try:
             sub = request.get_json(silent=True)
             if not sub:

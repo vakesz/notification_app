@@ -8,14 +8,19 @@ import http.server
 import socketserver
 
 PORT = 8000
-#TODO: Add an option that incrementally adds new and new posts. So we can test the client without having to manually add new posts.
+
+
+# TODO: Add an option that incrementally adds new and new posts.
+# So we can test the client without having to manually add new posts.
 class CustomHandler(http.server.SimpleHTTPRequestHandler):
     """Custom request handler to serve files from the current directory."""
+
     def do_GET(self):
         path = self.path
-        if path == '/':
-            path = '/index.html'
+        if path == "/":
+            path = "/index.html"
         return http.server.SimpleHTTPRequestHandler.do_GET(self)
+
 
 Handler = CustomHandler
 

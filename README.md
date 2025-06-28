@@ -205,7 +205,6 @@ The project includes comprehensive development tools configured in `pyproject.to
 - **black**: Automatic code formatting
 - **isort**: Import statement organization
 - **flake8**: Code style and quality linting
-- **mypy**: Static type checking
 
 All development dependencies are automatically installed with:
 
@@ -243,9 +242,6 @@ isort --check-only .
 
 # Lint code
 flake8 app
-
-# Type checking
-mypy app
 ```
 
 ### Continuous Integration
@@ -256,7 +252,6 @@ This project uses GitHub Actions for automated testing and code quality checks. 
 - **Code Formatting**: Validates code formatting with Black
 - **Import Sorting**: Ensures consistent import organization with isort
 - **Linting**: Code quality checks with Flake8
-- **Type Checking**: Static type analysis with mypy
 - **Test Coverage**: Automated test execution with coverage reporting
 
 The CI workflow runs on every push to main and on pull requests, ensuring code quality and compatibility across Python versions.

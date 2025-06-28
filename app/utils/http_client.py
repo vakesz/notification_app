@@ -1,15 +1,16 @@
 """HTTP client utilities for making requests with session management."""
 
 import logging
-from typing import Optional, Dict, Any, Callable
+from typing import Any, Callable, Dict, Optional
+
 import requests
 from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
 from requests_ntlm import HttpNtlmAuth
+from urllib3.util.retry import Retry
 
+from app.core.blog_security import BlogAuthentication
 from app.core.config import Config
 from app.version import __version__ as version
-from app.core.blog_security import BlogAuthentication
 
 logger = logging.getLogger(__name__)
 
@@ -117,9 +118,7 @@ class HTTPClient:
                 logger.error(error_msg)
                 logger.info("Try using a VPN or different network if this persists")
             elif response.status_code == 429:
-                error_msg = (
-                    f"Rate limited (429) - too many requests. URL: {response.url}"
-                )
+                error_msg = f"Rate limited (429) - too many requests. URL: {response.url}"
                 logger.error(error_msg)
             else:
                 error_msg = f"HTTP {response.status_code} error: {e}"
@@ -172,9 +171,7 @@ class HTTPClient:
 class BlogClient(HTTPClient):
     """Client for interacting with the blog API."""
 
-    def __init__(
-        self, *args, blog_auth: Optional["BlogAuthentication"] = None, **kwargs
-    ):
+    def __init__(self, *args, blog_auth: Optional["BlogAuthentication"] = None, **kwargs):
         provider = blog_auth.blog_auth if blog_auth else None
         super().__init__(*args, auth_provider=provider, **kwargs)
         self._blog_auth = blog_auth

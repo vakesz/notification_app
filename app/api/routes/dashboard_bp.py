@@ -1,30 +1,30 @@
 """Dashboard blueprint routes."""
 
-import logging
 import io
-from pathlib import Path
-from datetime import datetime, timedelta
+import logging
 import re
-from typing import Dict, Any, Optional, Callable, Union
+from datetime import datetime, timedelta
+from pathlib import Path
+from typing import Any, Callable, Dict, Optional, Union
+
 import requests
 from flask import (
     Blueprint,
-    render_template,
-    session,
-    redirect,
-    url_for,
+    Response,
+    current_app,
     flash,
     jsonify,
-    current_app,
+    redirect,
+    render_template,
+    request,
     send_file,
     send_from_directory,
-    request,
-    Response,
+    session,
+    url_for,
 )
 
-from app.core.utils.session_utils import require_auth, _validate_session
 from app.core.config import Config
-from app.utils.http_client import HTTPClientError
+from app.core.utils.session_utils import _validate_session, require_auth
 
 # Blueprint for dashboard routes
 dashboard_bp = Blueprint("dashboard_bp", __name__)
@@ -62,9 +62,7 @@ def _render_dashboard_context(**overrides: Any) -> Dict[str, Any]:
 
     # Calculate derived values
     total_posts = len(posts)
-    new_posts_count = sum(
-        1 for post in posts if post.created_at > now - timedelta(days=1)
-    )
+    new_posts_count = sum(1 for post in posts if post.created_at > now - timedelta(days=1))
 
     context = {
         "user": user,
@@ -109,9 +107,7 @@ def _json_response(func: Callable, *args: Any, **kwargs: Any) -> Union[Response,
     """
     try:
         result = func(*args, **kwargs)
-        response_data = (
-            result if isinstance(result, dict) else {"success": True, "data": result}
-        )
+        response_data = result if isinstance(result, dict) else {"success": True, "data": result}
         return jsonify(response_data)
     except (AttributeError, KeyError, ValueError, RuntimeError, TypeError) as e:
         logger.error(
@@ -180,7 +176,7 @@ def export_posts() -> Response:
         count = current_app.database_manager.export_posts_to_json(str(file_path))
         logger.info("Exported posts: %s (%d) | user=%s", filename, count, key)
         flash(f"Exported {count} posts to {filename}", "success")
-    except (OSError, IOError, PermissionError, ValueError, RuntimeError) as e:
+    except (OSError, ValueError, RuntimeError) as e:
         logger.error("Export failed: %s | user=%s", e, _get_user_key(), exc_info=True)
         flash(f"Export failed: {e}", "error")
     return redirect(url_for("dashboard_bp.dashboard"))
@@ -208,9 +204,7 @@ def get_notification_status() -> Union[Response, tuple]:
     def action() -> Dict[str, Any]:
         summary = current_app.notification_service.get_notification_summary()
         user_key = _get_user_key()
-        summary["push_enabled"] = current_app.database_manager.has_push_subscription(
-            user_key
-        )
+        summary["push_enabled"] = current_app.database_manager.has_push_subscription(user_key)
         logger.info("Notification status fetched | user=%s", user_key)
         return summary
 
@@ -239,9 +233,7 @@ def validate_session_api() -> Union[Response, tuple]:
         session.clear()
         current_app.access_token_storage.access_token = None
         return jsonify({"valid": False, "message": "Session expired"}), 401
-    logger.info(
-        "Session valid | user=%s | ip=%s", user.get("name"), request.remote_addr
-    )
+    logger.info("Session valid | user=%s | ip=%s", user.get("name"), request.remote_addr)
     return jsonify({"valid": True, "user": user.get("name")})
 
 
@@ -252,9 +244,7 @@ def user_photo() -> Response:
     token = request.cookies.get("access_token")
     if not token or not _validate_session():
         logger.warning("User photo invalid session | ip=%s", request.remote_addr)
-        return send_from_directory(
-            current_app.static_folder + "/img/user", "default_profile.webp"
-        )
+        return send_from_directory(current_app.static_folder + "/img/user", "default_profile.webp")
     try:
         resp = requests.get(
             "https://graph.microsoft.com/v1.0/me/photo/$value",
@@ -262,19 +252,13 @@ def user_photo() -> Response:
             timeout=Config.HTTP_TIMEOUT,
         )
         if resp.status_code == 200:
-            return send_file(
-                io.BytesIO(resp.content), mimetype=resp.headers.get("Content-Type")
-            )
+            return send_file(io.BytesIO(resp.content), mimetype=resp.headers.get("Content-Type"))
         if resp.status_code == 401:
             session.clear()
-        logger.warning(
-            "User photo fetch status %s | user=%s", resp.status_code, _get_user_key()
-        )
-    except (requests.RequestException, ConnectionError, TimeoutError, OSError) as e:
+        logger.warning("User photo fetch status %s | user=%s", resp.status_code, _get_user_key())
+    except (requests.RequestException, OSError) as e:
         logger.warning("Failed to fetch user photo: %s | user=%s", e, _get_user_key())
-    return send_from_directory(
-        current_app.static_folder + "/img/user", "default_profile.webp"
-    )
+    return send_from_directory(current_app.static_folder + "/img/user", "default_profile.webp")
 
 
 @dashboard_bp.route("/api/notifications/settings", methods=["GET"])

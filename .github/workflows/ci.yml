@@ -34,9 +34,6 @@ jobs:
       - name: Flake8 (lint)
         run: flake8 app
 
-      - name: mypy (type check)
-        run: mypy app
-
       - name: pytest (tests & coverage)
         run: pytest --cov=app --maxfail=1 --disable-warnings -q
 

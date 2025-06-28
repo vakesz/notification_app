@@ -2,10 +2,11 @@
 
 import logging
 import re
-from typing import Dict, Any
+from typing import Any, Dict
 from urllib.parse import quote
-from msal import ConfidentialClientApplication
+
 import requests
+from msal import ConfidentialClientApplication
 
 from app.core.config import Config
 
@@ -29,9 +30,7 @@ class AuthService:
         self.redirect_uri = redirect_uri
         self.scope = scope
 
-        self.msal_app = ConfidentialClientApplication(
-            client_id, authority=authority, client_credential=client_secret
-        )
+        self.msal_app = ConfidentialClientApplication(client_id, authority=authority, client_credential=client_secret)
 
     def get_authorization_url(self, state: str) -> str:
         """Get the authorization URL for Microsoft SSO."""
@@ -111,9 +110,7 @@ class AuthService:
 
         if "oid" in user_claims:
             oid = user_claims["oid"]
-            if not re.match(
-                r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", oid
-            ):
+            if not re.match(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", oid):
                 logger.warning("Invalid object ID format in user claims")
                 return False
 

@@ -1,37 +1,38 @@
 """Service for polling blog posts and creating notifications."""
 
 import logging
-import time
 import threading
+import time
 from datetime import datetime
-from apscheduler.schedulers.background import BackgroundScheduler
 from functools import wraps
 from typing import Any, Dict, List
 
+from apscheduler.schedulers.background import BackgroundScheduler  # type: ignore
+
+from app.core.config import Config
 from app.db.database import DatabaseManager
 from app.db.models import Notification, Post
+from app.services.notification import (  # pylint: disable=unused-import
+    NotificationService,
+)
 from app.services.parser import ContentParser
 from app.utils.http_client import BlogClient, HTTPClientError
-from app.core.config import Config
-from app.services.notification import (
-    NotificationService,
-)  # pylint: disable=unused-import
 
 # import is used only as a type‐hint
 
 logger = logging.getLogger(__name__)
 
 
-def rate_limit(calls: int, period: int):
+def rate_limit(calls: int, period: int) -> Any:
     """Decorator to limit the number of calls per time period."""
 
-    def decorator(func):
+    def decorator(func: Any) -> Any:
         last_reset = time.time()
         calls_made = 0
         lock = threading.Lock()
 
         @wraps(func)
-        def wrapper(*args, **kwargs):
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
             nonlocal last_reset, calls_made
             with lock:
                 now = time.time()
@@ -152,7 +153,7 @@ class PollingService:
         logger.debug("Starting single poll iteration")
         with self._lock:
             if self._is_polling:
-                return
+                return []
             self._is_polling = True
 
         new_posts: List[Post] = []
@@ -173,6 +174,9 @@ class PollingService:
         new_posts: List[Post] = []
         added = self.db.add_posts_bulk(posts)
         for post in added:
+            if post.id is None:
+                logger.warning("Skipping post with None id")
+                continue
             logger.info("Added new post: %s", post.id)
             notif = Notification(
                 post_id=post.id,
@@ -210,9 +214,7 @@ class PollingService:
         """Return current status of the polling service."""
         return {
             "is_running": self.scheduler.running,
-            "last_poll": (
-                self._last_poll_time.isoformat() if self._last_poll_time else None
-            ),
+            "last_poll": (self._last_poll_time.isoformat() if self._last_poll_time else None),
             "last_error": self._last_error,
             "is_polling": self._is_polling,
         }
