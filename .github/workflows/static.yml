@@ -4,6 +4,8 @@ name: Deploy README as HTML to Pages
 on:
   push:
     branches: ["main"]
+    paths:
+      - "README.md"
   workflow_dispatch:
 
 permissions:
