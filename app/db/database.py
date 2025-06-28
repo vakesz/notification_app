@@ -301,7 +301,6 @@ class DatabaseManager:
                 updated.append(post)
         return updated
 
-
     def get_post(self, post_id: str) -> Optional[Post]:
         """
         Retrieve a post by its unique ID.

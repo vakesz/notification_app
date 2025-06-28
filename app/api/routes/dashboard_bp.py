@@ -22,6 +22,8 @@ from flask import (
     session,
     url_for,
 )
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 from app.core.config import Config
 from app.core.utils.session_utils import _validate_session, require_auth
@@ -29,6 +31,9 @@ from app.core.utils.session_utils import _validate_session, require_auth
 # Blueprint for dashboard routes
 dashboard_bp = Blueprint("dashboard_bp", __name__)
 logger = logging.getLogger(__name__)
+
+# Initialize rate limiter
+flask_limiter = Limiter(app=current_app, key_func=get_remote_address, default_limits=["200 per day", "50 per hour"])
 
 # --- Helper Functions ---
 
