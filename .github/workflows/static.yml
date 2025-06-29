@@ -70,6 +70,13 @@ jobs:
                 box-shadow: 0 1px 3px rgba(0,0,0,0.12),
                             0 1px 2px rgba(0,0,0,0.24);
               }
+              .markdown-body figure {
+                margin: 0;
+                padding: 0;
+              }
+              .markdown-body figcaption {
+                display: none;
+              }
             </style>
           </head>
           <body>
@@ -83,7 +90,7 @@ jobs:
           </html>
           EOF
 
-      - name: Generate HTML from README.md (no alt-text, with syntax highlight)
+      - name: Generate HTML from README.md with syntax highlight
         run: |
           pandoc README.md \
             --standalone \
@@ -92,9 +99,6 @@ jobs:
             --metadata lang="en" \
             --template template.html \
             -o index.html
-
-          # strip out all alt="…" attributes
-          sed -i 's/ alt="[^"]*"//g' index.html
 
       - name: Prepare Pages directory
         run: |
