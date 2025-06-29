@@ -41,5 +41,5 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            ${{ secrets.REGISTRY_URL }}/notification_app:${{ github.event.inputs.tag }}
-            ${{ secrets.REGISTRY_URL }}/notification_app:latest
+            ${{ secrets.REGISTRY_USERNAME }}/notification_app:${{ github.event.inputs.tag }}
+            ${{ secrets.REGISTRY_USERNAME }}/notification_app:latest
