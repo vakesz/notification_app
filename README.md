@@ -1,9 +1,7 @@
 
-<p align="center">
-  <img src="https://repository-images.githubusercontent.com/1005227614/0c6f83ac-3ce5-4ee8-bcad-344c166ad5fb" alt="Notification App" />
-</p>
-
 # Notification App
+
+![Notification App](https://repository-images.githubusercontent.com/1005227614/0c6f83ac-3ce5-4ee8-bcad-344c166ad5fb)
 
 [![Build Status](https://github.com/vakesz/notification_app/actions/workflows/ci.yml/badge.svg)](https://github.com/vakesz/notification_app/actions)
 [![Coverage Status](https://coveralls.io/repos/github/vakesz/notification_app/badge.svg?branch=main)](https://coveralls.io/github/vakesz/notification_app?branch=main)
