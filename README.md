@@ -28,7 +28,7 @@ This Flask-based application automatically monitors blog content and delivers pe
 
 ### Prerequisites
 
-- Python 3.8 or higher
+- Python 3.10 or higher
 - Azure AD application registration
 - VAPID keys for web push notifications
 
@@ -70,8 +70,25 @@ This Flask-based application automatically monitors blog content and delivers pe
    AAD_REDIRECT_URI=http://localhost:5000/auth/callback
 
    # Blog API Configuration
-   BLOG_API_BASE_URL=https://your-blog-api-url.com
+   BLOG_API_URL=https://your-blog-api-url.com
    BLOG_API_AUTH_METHOD=none
+
+   # Optional Blog API Authentication (choose one if needed)
+   # For OAuth2:
+   # BLOG_API_OAUTH2_CLIENT_ID=your-oauth2-client-id
+   # BLOG_API_OAUTH2_CLIENT_SECRET=your-oauth2-client-secret
+   # BLOG_API_OAUTH2_TOKEN_URL=https://your-oauth2-token-url.com
+
+   # For MSAL:
+   # BLOG_API_MSAL_CLIENT_ID=your-msal-client-id
+   # BLOG_API_MSAL_CLIENT_SECRET=your-msal-client-secret
+   # BLOG_API_MSAL_TENANT_ID=your-msal-tenant-id
+   # BLOG_API_MSAL_SCOPE=your-msal-scope
+
+   # For NTLM:
+   # BLOG_API_NTLM_USER=your-ntlm-user
+   # BLOG_API_NTLM_PASSWORD=your-ntlm-password
+   # BLOG_API_NTLM_DOMAIN=your-ntlm-domain
 
    # Web Push Configuration
    PUSH_VAPID_PUBLIC_KEY=your-vapid-public-key
@@ -83,6 +100,14 @@ This Flask-based application automatically monitors blog content and delivers pe
    APP_DATABASE_PATH=db/posts.db
    POLLING_INTERVAL_MIN=15
    HTTP_TIMEOUT=30
+
+   # Optional Advanced Settings
+   # HTTP_MAX_RETRIES=3
+   # HTTP_RETRY_BACKOFF=1
+   # POLLING_BACKOFF_FACTOR=1.5
+   # POLLING_MAX_BACKOFF=3600
+   # AUTH_TOKEN_TTL_DAYS=30
+   # PUSH_TTL=86400
    ```
 
 5. **Database Setup**
@@ -123,6 +148,8 @@ This Flask-based application automatically monitors blog content and delivers pe
    docker-compose up -d
    ```
 
+**Note:** The actual Dockerfile uses `CMD ["gunicorn", "-w", "4", "-b", "0.0.0.0:5000", "app.web.main:create_app()"]` to properly initialize the Flask application factory.
+
 ## Usage Instructions
 
 ### Starting the Application
@@ -138,7 +165,7 @@ flask run
 **Production Mode:**
 
 ```bash
-gunicorn -w 4 -b 0.0.0.0:5000 app.web.main:create_app()
+gunicorn -w 4 -b 0.0.0.0:5000 "app.web.main:create_app()"
 ```
 
 ### Accessing the Application
@@ -217,6 +244,8 @@ All development dependencies are automatically installed with:
 ```bash
 pip install -e .[dev]
 ```
+
+### Running Tests and Quality Checks
 
 ```bash
 # Install development dependencies
@@ -308,5 +337,6 @@ See `pyproject.toml` for a complete list of dependencies.
 ### Support
 
 - **Bug Reports**: [GitHub Issues](https://github.com/vakesz/notification_app/issues)
+- **Security Issues** (Confidential): Use the [Security Policy](https://github.com/vakesz/notification_app/blob/main/SECURITY.md)
 
 Built with ❤️ for efficient company communication.

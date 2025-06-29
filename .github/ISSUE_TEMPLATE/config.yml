@@ -1,8 +1,46 @@
-blank_issues_enabled: false
+# ┌────────────────────────────────────────────────────────────────────────────┐
+# │    Notification App Configuration (v1.0)                                   │
+# └────────────────────────────────────────────────────────────────────────────┘
+
+version: "1.0"                           # Config schema version
+blank_issues_enabled: false              # If true, creates empty issues when triggered
+
+# ── Issue & PR template locations (optional) ─────────────────────────────────
+templates:
+  issue_form: .github/ISSUE_TEMPLATE/bug_report.yml
+  pr_template: .github/PULL_REQUEST_TEMPLATE.md
+
+# ── Default issue metadata applied automatically ─────────────────────────────
+defaults:
+  labels: ["triage"]                     # Labels to add to every incoming issue
+  assignees: []                          # GitHub usernames to auto-assign
+  milestone: null                        # e.g. "v2.0"
+
+# ── Predefined contact links (rendered in UI or docs) ─────────────────────────
 contact_links:
-  - name: Security Vulnerability
-    url: https://github.com/vakesz/notification_app/security/policy
-    about: Please report security vulnerabilities privately via our security policy
-  - name: General Questions
-    url: https://github.com/vakesz/notification_app/discussions
-    about: Ask questions and discuss ideas in GitHub Discussions
+  - id: security                         # unique key for internal reference
+    name: "Security Vulnerability"
+    url: "https://github.com/vakesz/notification_app/security/policy"
+    description: "Report vulnerabilities privately via our security policy."
+    icon: "shield"                       # (optional) UI icon name
+    labels: ["security"]                 # auto-apply to issues created via this link
+
+  - id: discussions
+    name: "General Questions"
+    url: "https://github.com/vakesz/notification_app/discussions"
+    description: "Ask questions and discuss ideas in GitHub Discussions."
+    icon: "comment"
+
+  - id: bug_report
+    name: "Report a Bug"
+    url: "https://github.com/vakesz/notification_app/issues/new?template=bug_report.md"
+    description: "Found a bug? Use our issue template to report it."
+    icon: "bug"
+    labels: ["bug"]
+
+  - id: feature_request
+    name: "Feature Request"
+    url: "https://github.com/vakesz/notification_app/issues/new?template=feature_request.md"
+    description: "Have an idea? Suggest new features here."
+    icon: "lightbulb"
+    labels: ["enhancement"]
