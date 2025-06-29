@@ -1,4 +1,4 @@
-# Simple workflow for converting README.md to HTML and deploying to GitHub Pages
+# .github/workflows/deploy-readme.yml
 name: Deploy README as HTML to Pages
 
 on:
@@ -42,7 +42,20 @@ jobs:
             <meta charset="utf-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>$title$</title>
-            <link rel="stylesheet" href="$css$">
+            <!-- Auto light/dark mode for Markdown styling -->
+            <link rel="stylesheet"
+                  href="https://cdn.jsdelivr.net/npm/github-markdown-css@5.4.0/github-markdown-light.css"
+                  media="(prefers-color-scheme: light)">
+            <link rel="stylesheet"
+                  href="https://cdn.jsdelivr.net/npm/github-markdown-css@5.4.0/github-markdown-dark.css"
+                  media="(prefers-color-scheme: dark)">
+            <!-- Highlight.js styles -->
+            <link rel="stylesheet"
+                  href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/github.min.css"
+                  media="(prefers-color-scheme: light)">
+            <link rel="stylesheet"
+                  href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/github-dark.min.css"
+                  media="(prefers-color-scheme: dark)">
             <style>
               body {
                 box-sizing: border-box;
@@ -56,33 +69,38 @@ jobs:
                 background-color: white;
                 border-radius: 6px;
                 padding: 32px;
-                box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);
+                box-shadow: 0 1px 3px rgba(0,0,0,0.12),
+                            0 1px 2px rgba(0,0,0,0.24);
               }
               h1 { color: #0969da; border-bottom: 2px solid #0969da; }
               h2 { color: #656d76; }
               code { background-color: #f6f8fa; padding: 2px 4px; border-radius: 3px; }
-              pre { background-color: #f6f8fa; border-radius: 6px; }
+              pre  { background-color: #f6f8fa; border-radius: 6px; padding: 16px; }
             </style>
           </head>
           <body>
             <article class="markdown-body">
               $body$
             </article>
+            <!-- Highlight.js runtime -->
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
+            <script>hljs.highlightAll();</script>
           </body>
           </html>
           EOF
 
-      - name: Generate HTML from README.md
+      - name: Generate HTML from README.md (no alt-text, with syntax highlight)
         run: |
           pandoc README.md \
             --standalone \
-            --metadata title="Notification App - Project Documentation" \
+            --metadata title="Notification App – Project Documentation" \
             --metadata author="Notification App" \
             --metadata lang="en" \
-            --css https://cdn.jsdelivr.net/npm/github-markdown-css@5.4.0/github-markdown-light.css \
-            --highlight-style pygments \
             --template template.html \
             -o index.html
+
+          # strip out all alt="…" attributes
+          sed -i 's/ alt="[^"]*"//g' index.html
 
       - name: Prepare Pages directory
         run: |
@@ -95,7 +113,6 @@ jobs:
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          # Must be a directory, not a file
           path: public
 
       - name: Deploy to GitHub Pages
