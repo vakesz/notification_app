@@ -1,4 +1,4 @@
-name: Deploy README as HTML to Pages
+name: Deploy GitHub Pages Documentation
 
 on:
   push:

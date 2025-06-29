@@ -3,7 +3,11 @@
 # Notification App
 
 [![Build Status](https://github.com/vakesz/notification_app/actions/workflows/ci.yml/badge.svg)](https://github.com/vakesz/notification_app/actions)
-[![Coverage Status](https://coveralls.io/repos/github/vakesz/notification_app/badge.svg?branch=main)](https://coveralls.io/github/vakesz/notification_app?branch=main)
+[![Docker Image](https://github.com/vakesz/notification_app/actions/workflows/release-docker.yml/badge.svg)](https://github.com/vakesz/notification_app/actions/workflows/release-docker.yml)
+[![GitHub Pages](https://github.com/vakesz/notification_app/actions/workflows/static.yml/badge.svg)](https://vakesz.github.io/notification_app/)
+[![Python Version](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/downloads/)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
 A real-time web application for monitoring blog posts with intelligent notifications, Azure AD authentication, and web push support.
 
@@ -118,36 +122,54 @@ This Flask-based application automatically monitors blog content and delivers pe
 
 ### Docker Deployment
 
-1. **Build the Docker image**
+#### Run with Docker
 
-   ```bash
-   docker build -t notification-app .
-   ```
+```bash
+# Pull the latest image
+docker pull ghcr.io/vakesz/notification_app:latest
 
-2. **Run with Docker Compose** (create docker-compose.yml)
+# Run with environment variables
+docker run -d \
+  --name notification-app \
+  -p 5000:5000 \
+  -e SECRET_KEY=your-secret-key \
+  -e AAD_CLIENT_ID=your-azure-ad-client-id \
+  -e AAD_CLIENT_SECRET=your-azure-ad-client-secret \
+  -e AAD_TENANT_ID=your-azure-ad-tenant-id \
+  -e BLOG_API_URL=https://your-blog-api-url.com \
+  -e PUSH_VAPID_PUBLIC_KEY=your-vapid-public-key \
+  -e PUSH_VAPID_PRIVATE_KEY=your-vapid-private-key \
+  -e PUSH_CONTACT_EMAIL=your-contact-email@example.com \
+  -v notification-db:/app/db \
+  ghcr.io/vakesz/notification_app:latest
+```
+
+#### Run with Docker Compose
 
    ```yaml
    version: '3.8'
    services:
      app:
-       build: .
+       image: ghcr.io/vakesz/notification_app:latest
        ports:
          - "5000:5000"
        environment:
          - SECRET_KEY=your-secret-key
          - AAD_CLIENT_ID=your-client-id
-         # ... other environment variables
+         - AAD_CLIENT_SECRET=your-azure-ad-client-secret
+         - AAD_TENANT_ID=your-tenant-id
+         - AAD_REDIRECT_URI=http://localhost:5000/auth/callback
+         - BLOG_API_URL=https://your-blog-api-url.com
+         - PUSH_VAPID_PUBLIC_KEY=your-vapid-public-key
+         - PUSH_VAPID_PRIVATE_KEY=your-vapid-private-key
+         - PUSH_CONTACT_EMAIL=your-contact-email@example.com
        volumes:
-         - ./db:/app/db
+         - notification-db:/app/db
+   volumes:
+     notification-db:
    ```
 
-3. **Start the application**
-
-   ```bash
-   docker-compose up -d
-   ```
-
-**Note:** The actual Dockerfile uses `CMD ["gunicorn", "-w", "4", "-b", "0.0.0.0:5000", "app.web.main:create_app()"]` to properly initialize the Flask application factory.
+**Note:** The Docker image uses multi-architecture support (amd64/arm64) and runs with `gunicorn -w 4 -b 0.0.0.0:5000 "app.web.main:create_app()"` to properly initialize the Flask application factory.
 
 ## Usage Instructions
 
