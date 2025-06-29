@@ -80,7 +80,7 @@ jobs:
             --metadata author="Notification App" \
             --metadata lang="en" \
             --css https://cdn.jsdelivr.net/npm/github-markdown-css@5.4.0/github-markdown-light.css \
-            --highlight-style github \
+            --highlight-style pygments \
             --template template.html \
             -o index.html
 
