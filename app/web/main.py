@@ -6,7 +6,9 @@ from logging import Formatter
 from logging.handlers import RotatingFileHandler
 
 from flask import Flask, jsonify, request, session
-from flask_wtf import CSRFProtect  # type: ignore
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+from flask_wtf import CSRFProtect
 
 from app.api.routes.auth_bp import auth_bp
 from app.api.routes.dashboard_bp import dashboard_bp
@@ -44,6 +46,7 @@ def create_app(config_name: str = "default") -> Flask:
     setup_logging()
 
     flask_app = Flask(__name__)
+    flask_limiter = Limiter(key_func=get_remote_address, app=flask_app)
     CSRFProtect(flask_app)
 
     # Load and validate config
@@ -104,12 +107,14 @@ def create_app(config_name: str = "default") -> Flask:
 
     # CLI commands
     @flask_app.cli.command("start-polling")
+    @flask_limiter.limit("1 per minute")
     def start_polling() -> None:
         """Start the polling service."""
         flask_app.logger.info("Starting polling service via CLI")
         poller.start()
 
     @flask_app.cli.command("stop-polling")
+    @flask_limiter.limit("1 per minute")
     def stop_polling() -> None:
         """Stop the polling service."""
         flask_app.logger.info("Stopping polling service via CLI")
@@ -125,6 +130,7 @@ def create_app(config_name: str = "default") -> Flask:
         )
 
     @flask_app.route("/subscribe", methods=["POST"])
+    @flask_limiter.limit("10 per minute")
     def subscribe() -> tuple[dict | str, int]:
         sub = request.get_json(silent=True)
         if not _validate_subscription(sub):
@@ -147,6 +153,7 @@ def create_app(config_name: str = "default") -> Flask:
         return jsonify({"message": "Subscription successful"}), 201
 
     @flask_app.route("/notify", methods=["GET"])
+    @flask_limiter.limit("5 per minute")
     def notify() -> tuple[dict, int]:
         """Send a test notification to all push subscriptions."""
         if flask_app.notification_service.create_test_notification():
@@ -170,6 +177,7 @@ def create_app(config_name: str = "default") -> Flask:
             return jsonify({"error": str(e)}), 500
 
     @flask_app.route("/api/notifications/deregister", methods=["POST"])
+    @flask_limiter.limit("10 per minute")
     def api_deregister() -> tuple[dict, int]:
         try:
             sub = request.get_json(silent=True)
