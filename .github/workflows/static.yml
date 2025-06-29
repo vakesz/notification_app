@@ -33,16 +33,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y pandoc
 
-      - name: Generate HTML from README.md
+      - name: Create HTML template
         run: |
-          pandoc README.md \
-            --standalone \
-            --metadata title="Notification App - Project Documentation" \
-            --metadata author="Notification App" \
-            --metadata lang="en" \
-            --css https://cdn.jsdelivr.net/npm/github-markdown-css@5.4.0/github-markdown-light.css \
-            --highlight-style github \
-            --template <(echo '<!DOCTYPE html>
+          cat > template.html << 'EOF'
+          <!DOCTYPE html>
           <html lang="$lang$">
           <head>
             <meta charset="utf-8">
@@ -75,7 +69,19 @@ jobs:
               $body$
             </article>
           </body>
-          </html>') \
+          </html>
+          EOF
+
+      - name: Generate HTML from README.md
+        run: |
+          pandoc README.md \
+            --standalone \
+            --metadata title="Notification App - Project Documentation" \
+            --metadata author="Notification App" \
+            --metadata lang="en" \
+            --css https://cdn.jsdelivr.net/npm/github-markdown-css@5.4.0/github-markdown-light.css \
+            --highlight-style github \
+            --template template.html \
             -o index.html
 
       - name: Prepare Pages directory
