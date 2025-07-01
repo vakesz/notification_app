@@ -147,7 +147,7 @@ class PollingService:
         except (ValueError, TypeError, RuntimeError) as e:
             logger.error("Cleanup failed: %s", e)
 
-    @rate_limit(calls=1, period=60)
+    @rate_limit(calls=10, period=60)
     def _poll_once(self) -> List[Post]:
         """Fetch and process new posts once.
 
