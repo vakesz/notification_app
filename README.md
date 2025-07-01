@@ -73,7 +73,7 @@ This Flask-based application automatically monitors blog content and delivers pe
    AAD_REDIRECT_URI=http://localhost:5000/auth/callback
 
    # Blog API Configuration
-   BLOG_API_URL=https://your-blog-api-url.com
+   COMPANY_BLOG_URL=https://your-blog-api-url.com
    BLOG_API_AUTH_METHOD=none
 
    # Optional Blog API Authentication (choose one if needed)
@@ -136,7 +136,7 @@ docker run -d \
   -e AAD_CLIENT_ID=your-azure-ad-client-id \
   -e AAD_CLIENT_SECRET=your-azure-ad-client-secret \
   -e AAD_TENANT_ID=your-azure-ad-tenant-id \
-  -e BLOG_API_URL=https://your-blog-api-url.com \
+  -e COMPANY_BLOG_URL=https://your-blog-api-url.com \
   -e PUSH_VAPID_PUBLIC_KEY=your-vapid-public-key \
   -e PUSH_VAPID_PRIVATE_KEY=your-vapid-private-key \
   -e PUSH_CONTACT_EMAIL=your-contact-email@example.com \
@@ -159,7 +159,7 @@ docker run -d \
          - AAD_CLIENT_SECRET=your-azure-ad-client-secret
          - AAD_TENANT_ID=your-tenant-id
          - AAD_REDIRECT_URI=http://localhost:5000/auth/callback
-         - BLOG_API_URL=https://your-blog-api-url.com
+         - COMPANY_BLOG_URL=https://your-blog-api-url.com
          - PUSH_VAPID_PUBLIC_KEY=your-vapid-public-key
          - PUSH_VAPID_PRIVATE_KEY=your-vapid-private-key
          - PUSH_CONTACT_EMAIL=your-contact-email@example.com

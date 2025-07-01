@@ -31,7 +31,7 @@ class Config:
 
     # Application
     APP_NAME = os.environ.get("APP_NAME", "Blog Notifications Parser")
-    BLOG_API_URL = os.environ.get("BLOG_API_BASE_URL")
+    BLOG_API_URL = os.environ.get("COMPANY_BLOG_URL")
 
     # Blog API authentication
     BLOG_API_AUTH_METHOD = os.environ.get("BLOG_API_AUTH_METHOD", "none").lower()
@@ -80,7 +80,7 @@ class Config:
             "AAD_CLIENT_SECRET",
             "AAD_TENANT_ID",
             "AAD_REDIRECT_URI",
-            "BLOG_API_URL",
+            "COMPANY_BLOG_URL",
             "PUSH_VAPID_PUBLIC_KEY",
             "PUSH_VAPID_PRIVATE_KEY",
         ]
