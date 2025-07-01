@@ -113,14 +113,12 @@ def create_app(config_name: str = "default") -> Flask:
 
     # CLI commands
     @flask_app.cli.command("start-polling")
-    @limiter.limit("1 per minute")
     def start_polling() -> None:
         """Start the polling service."""
         flask_app.logger.info("Starting polling service via CLI")
         poller.start()
 
     @flask_app.cli.command("stop-polling")
-    @limiter.limit("1 per minute")
     def stop_polling() -> None:
         """Stop the polling service."""
         flask_app.logger.info("Stopping polling service via CLI")
