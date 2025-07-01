@@ -89,7 +89,7 @@ class PollingService:
 
         self._lock = threading.Lock()
         self._last_poll_time: datetime = None  # type: ignore
-        self._last_error: str = ""
+        self._last_error = None
         self._is_polling = False
         self._retry_count = 0
         self._last_manual_poll: float = 0.0

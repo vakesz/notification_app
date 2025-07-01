@@ -181,9 +181,9 @@ class DatabaseManager:
             self._ensure_column(conn, "auth_tokens", "last_accessed", "TEXT")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_posts_created ON posts(created_at)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_auth_tokens_user ON auth_tokens(user_id)")
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_posts_publish ON posts(publish_date);")
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_notifications_expires ON notifications(expires_at);")
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_notifications_created ON notifications(created_at);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_posts_publish ON posts(publish_date)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_notifications_expires ON notifications(expires_at)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_notifications_created ON notifications(created_at)")
 
     def _ensure_column(self, conn: sqlite3.Connection, table: str, column: str, definition: str) -> None:
         cols = [row[1] for row in conn.execute(f"PRAGMA table_info({table})")]
