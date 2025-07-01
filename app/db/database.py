@@ -165,10 +165,10 @@ class DatabaseManager:
             except Exception as e:
                 # Log the error and rollback
                 logger.error("Transaction failed: %s", e)
-                self._conn.execute("ROLLBACK")
+                self._conn.rollback()
                 raise DatabaseError(f"Transaction failed: {e}") from e
             else:
-                self._conn.execute("COMMIT")
+                self._conn.commit()
 
     def _initialize_db(self) -> None:
         """
