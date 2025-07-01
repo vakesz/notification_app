@@ -1,5 +1,4 @@
-# Simple workflow for converting README.md to HTML and deploying to GitHub Pages
-name: Deploy README as HTML to Pages
+name: Deploy GitHub Pages Documentation
 
 on:
   push:
@@ -33,11 +32,72 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y pandoc
 
-      - name: Generate HTML from README.md
+      - name: Create HTML template
+        run: |
+          cat > template.html << 'EOF'
+          <!DOCTYPE html>
+          <html lang="$lang$">
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <!-- Prevent flash-of-unstyled light background -->
+            <meta name="color-scheme" content="light dark">
+            <title>$title$</title>
+
+            <!-- Combined GitHub Markdown CSS for auto light/dark -->
+            <link rel="stylesheet"
+                  href="https://cdn.jsdelivr.net/npm/github-markdown-css@5.4.0/github-markdown.css">
+
+            <!-- Highlight.js styles -->
+            <link rel="stylesheet"
+                  href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/github.min.css"
+                  media="(prefers-color-scheme: light)">
+            <link rel="stylesheet"
+                  href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/github-dark.min.css"
+                  media="(prefers-color-scheme: dark)">
+
+            <style>
+              body {
+                box-sizing: border-box;
+                min-width: 200px;
+                max-width: 980px;
+                margin: 0 auto;
+                padding: 45px;
+              }
+              .markdown-body {
+                border-radius: 6px;
+                padding: 32px;
+                box-shadow: 0 1px 3px rgba(0,0,0,0.12),
+                            0 1px 2px rgba(0,0,0,0.24);
+              }
+              .markdown-body figure {
+                margin: 0;
+                padding: 0;
+              }
+              .markdown-body figcaption {
+                display: none;
+              }
+            </style>
+          </head>
+          <body>
+            <article class="markdown-body">
+              $body$
+            </article>
+            <!-- Highlight.js runtime -->
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
+            <script>hljs.highlightAll();</script>
+          </body>
+          </html>
+          EOF
+
+      - name: Generate HTML from README.md with syntax highlight
         run: |
           pandoc README.md \
             --standalone \
-            --metadata title="Project Documentation" \
+            --metadata title="Notification App – Project Documentation" \
+            --metadata author="Notification App" \
+            --metadata lang="en" \
+            --template template.html \
             -o index.html
 
       - name: Prepare Pages directory
@@ -51,7 +111,6 @@ jobs:
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          # Must be a directory, not a file
           path: public
 
       - name: Deploy to GitHub Pages

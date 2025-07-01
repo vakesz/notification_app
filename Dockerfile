@@ -19,4 +19,4 @@ RUN apt-get update && apt-get install -y --no-install-recommends build-essential
 
 EXPOSE 5000
 
-CMD ["gunicorn", "-w", "4", "-b", "0.0.0.0:5000", "app.web.main:app"]
+CMD ["gunicorn", "-w", "4", "-b", "0.0.0.0:5000", "app.web.main:create_app"]
