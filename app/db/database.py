@@ -123,6 +123,7 @@ class DatabaseManager:
                 self.db_path,
                 timeout=Config.HTTP_TIMEOUT,
                 check_same_thread=False,
+                isolation_level=None,
             )
             conn.row_factory = sqlite3.Row
             conn.execute("PRAGMA foreign_keys = ON")
@@ -143,17 +144,24 @@ class DatabaseManager:
         Raises:
             DatabaseError: If an error occurs during transaction.
         """
-        conn = self._conn
-        # Using a long-lived connection with a thread lock for simplicity.
-        try:
-            yield conn
-            conn.commit()
-        except Exception as e:
-            conn.rollback()
-            logger.error("Transaction failed: %s", e)
-            raise DatabaseError(f"Transaction failed: {e}") from e
-        finally:
-            pass
+        with self._lock:
+            conn = self._conn
+            # Check if we're already in a transaction
+            in_transaction = conn.in_transaction
+            if not in_transaction:
+                conn.execute("BEGIN")
+            try:
+                yield conn
+                if not in_transaction:
+                    conn.commit()
+            except Exception as e:
+                if not in_transaction:
+                    try:
+                        conn.rollback()
+                    except sqlite3.Error:
+                        pass
+                logger.error("Transaction failed: %s", e)
+                raise DatabaseError(f"Transaction failed: {e}") from e
 
     def _initialize_db(self) -> None:
         """
@@ -183,10 +191,12 @@ class DatabaseManager:
         Returns:
             sqlite3.Cursor: Cursor after execution.
         """
-        with self._transaction() as conn:
-            # TODO: Surface database errors to callers instead of returning the
-            #       raw cursor so that failures can be handled upstream.
-            return conn.execute(sql, params)
+        try:
+            with self._transaction() as conn:
+                return conn.execute(sql, params)
+        except sqlite3.Error as e:
+            logger.error("SQL execution error. Query: %s, Params: %s, Error: %s", sql, params, e)
+            raise DatabaseError(f"Execution failed for SQL: {sql} with params {params}: {e}") from e
 
     def add_post(self, post: Post) -> bool:
         """
