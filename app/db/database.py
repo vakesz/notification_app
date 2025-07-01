@@ -78,7 +78,7 @@ class DatabaseManager:
         ),
         (
             "notification_keywords",
-            ("user_key TEXT NOT NULL, keyword TEXT NOT NULL," " PRIMARY KEY(user_key, keyword)"),
+            ("user_key TEXT NOT NULL, keyword TEXT NOT NULL, PRIMARY KEY(user_key, keyword)"),
         ),
         (
             "keywords",
@@ -142,7 +142,7 @@ class DatabaseManager:
         if hasattr(self, "_conn") and self._conn:
             try:
                 self._conn.close()
-            except Exception as e:
+            except sqlite3.Error as e:
                 logger.error("Error closing database connection: %s", e)
             self._conn = None
 
@@ -159,16 +159,23 @@ class DatabaseManager:
             DatabaseError: If an error occurs during transaction.
         """
         with self._lock:
+            self._conn.execute("BEGIN")
+            success = False
             try:
-                self._conn.execute("BEGIN")
                 yield self._conn
-            except Exception as e:
-                # Log the error and rollback
+                success = True
+            except sqlite3.Error as e:
                 logger.error("Transaction failed: %s", e)
-                self._conn.rollback()
+                # immediate rollback on error
+                try:
+                    self._conn.rollback()
+                except sqlite3.Error as rollback_err:
+                    logger.error("Rollback failed: %s", rollback_err)
+                    raise DatabaseError(f"Rollback failed: {rollback_err}") from rollback_err
                 raise DatabaseError(f"Transaction failed: {e}") from e
-            else:
-                self._conn.commit()
+            finally:
+                if success:
+                    self._conn.commit()
 
     def _initialize_db(self) -> None:
         """

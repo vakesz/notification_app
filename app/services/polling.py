@@ -204,7 +204,7 @@ class PollingService:
         try:
             job.modify(next_run_time=datetime.utcnow())
             logger.info("Manual poll scheduled")
-        except Exception as e:
+        except (ValueError, RuntimeError) as e:
             logger.error("Unable to schedule manual poll: %s", e)
             self._last_error = str(e)
 

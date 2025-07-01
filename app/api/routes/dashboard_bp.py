@@ -162,7 +162,7 @@ def refresh_posts() -> Response:
     try:
         current_app.polling_service.manual_poll()
         flash("Refreshing posts...", "info")
-    except Exception as e:
+    except (RuntimeError, ValueError, OSError) as e:
         logger.error("Manual refresh failed: %s | user=%s", e, _get_user_key(), exc_info=True)
         flash(f"Refresh failed: {e}", "error")
     return redirect(url_for("dashboard_bp.dashboard"))
