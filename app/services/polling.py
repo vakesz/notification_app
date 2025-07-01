@@ -58,6 +58,8 @@ def rate_limit(calls: int, period: int) -> Any:
 class PollingService:
     """Continuously polls a blog for new posts and records notifications."""
 
+    SCHEDULER_NAME = "polling_service"
+
     def __init__(
         self,
         blog_url: str,
@@ -87,7 +89,7 @@ class PollingService:
 
         self._lock = threading.Lock()
         self._last_poll_time: datetime = None  # type: ignore
-        self._last_error: str = ""
+        self._last_error = None
         self._is_polling = False
         self._retry_count = 0
         self._last_manual_poll: float = 0.0
@@ -104,6 +106,7 @@ class PollingService:
             self._poll_job,
             "interval",
             seconds=self.interval,
+            id=self.SCHEDULER_NAME,
             misfire_grace_time=max(60, self.interval // 2),
         )
         self.scheduler.add_job(
@@ -191,24 +194,19 @@ class PollingService:
 
         return new_posts
 
-    def poll_now(self) -> None:
-        """Manually trigger a poll immediately."""
-        logger.info("Manual poll triggered")
-        if time.time() - self._last_manual_poll < self.rate_limit_period:
-            logger.info("Manual poll ignored due to cooldown")
+    def manual_poll(self) -> None:
+        """Trigger a manual poll, and the scheduler itself will handle it."""
+        job = self.scheduler.get_job(self.SCHEDULER_NAME)
+        if not job:
+            logger.error("No polling job found with id %s", self.SCHEDULER_NAME)
             return
 
-        self._last_manual_poll = time.time()
         try:
-            new_posts = self._poll_once()
-            if new_posts and self.notifier:
-                self.notifier.create_bulk_notification(new_posts)
-        except HTTPClientError as e:
-            logger.error("Manual poll failed due to network issue: %s", e)
-            raise
-        except (ValueError, TypeError, RuntimeError) as e:
-            logger.error("Manual poll failed: %s", e)
-            raise
+            job.modify(next_run_time=datetime.utcnow())
+            logger.info("Manual poll scheduled")
+        except (ValueError, RuntimeError) as e:
+            logger.error("Unable to schedule manual poll: %s", e)
+            self._last_error = str(e)
 
     def get_status(self) -> Dict[str, Any]:
         """Return current status of the polling service."""

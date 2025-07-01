@@ -22,6 +22,8 @@ from flask import (
     session,
     url_for,
 )
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 from app.core.config import Config
 from app.core.utils.session_utils import _validate_session, require_auth
@@ -29,6 +31,9 @@ from app.core.utils.session_utils import _validate_session, require_auth
 # Blueprint for dashboard routes
 dashboard_bp = Blueprint("dashboard_bp", __name__)
 logger = logging.getLogger(__name__)
+
+# Initialize rate limiter
+limiter = Limiter(key_func=get_remote_address)
 
 # --- Helper Functions ---
 
@@ -150,14 +155,14 @@ def dashboard() -> str:
 
 
 @dashboard_bp.route("/refresh")
+@limiter.limit("5 per minute")
 @require_auth
 def refresh_posts() -> Response:
     """Trigger a dashboard refresh."""
-    # TODO: Poll_now could be removed later, and rather should be replaced with APScheduler calls with rate limiting
     try:
-        current_app.polling_service.poll_now()
+        current_app.polling_service.manual_poll()
         flash("Refreshing posts...", "info")
-    except Exception as e:
+    except (RuntimeError, ValueError, OSError) as e:
         logger.error("Manual refresh failed: %s | user=%s", e, _get_user_key(), exc_info=True)
         flash(f"Refresh failed: {e}", "error")
     return redirect(url_for("dashboard_bp.dashboard"))

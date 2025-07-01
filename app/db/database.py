@@ -25,8 +25,7 @@ class DatabaseManager:
     in the notifications application.
 
     Handles table initialization, CRUD operations for
-    posts, notifications, push subscriptions,
-    blog credentials, and settings.
+    posts, notifications, push subscriptions and settings.
     """
 
     _SCHEMA = [
@@ -79,7 +78,7 @@ class DatabaseManager:
         ),
         (
             "notification_keywords",
-            ("user_key TEXT NOT NULL, keyword TEXT NOT NULL," " PRIMARY KEY(user_key, keyword)"),
+            ("user_key TEXT NOT NULL, keyword TEXT NOT NULL, PRIMARY KEY(user_key, keyword)"),
         ),
         (
             "keywords",
@@ -104,9 +103,15 @@ class DatabaseManager:
             db_path: Path to the SQLite database file.
         """
         self.db_path = db_path
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
         self._conn = self._create_connection()
         self._initialize_db()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self._close_connection()
 
     def _create_connection(self) -> sqlite3.Connection:
         """
@@ -121,8 +126,9 @@ class DatabaseManager:
         try:
             conn = sqlite3.connect(
                 self.db_path,
-                timeout=Config.HTTP_TIMEOUT,
+                timeout=Config.DB_TIMEOUT,
                 check_same_thread=False,
+                isolation_level=None,
             )
             conn.row_factory = sqlite3.Row
             conn.execute("PRAGMA foreign_keys = ON")
@@ -130,6 +136,15 @@ class DatabaseManager:
         except sqlite3.Error as e:
             logger.error("Connection error: %s", e)
             raise DatabaseError(f"Connection error: {e}") from e
+
+    def _close_connection(self) -> None:
+        """Close the database connection."""
+        if hasattr(self, "_conn") and self._conn:
+            try:
+                self._conn.close()
+            except sqlite3.Error as e:
+                logger.error("Error closing database connection: %s", e)
+            self._conn = None
 
     @contextmanager
     def _transaction(self) -> sqlite3.Connection:  # type: ignore
@@ -143,17 +158,24 @@ class DatabaseManager:
         Raises:
             DatabaseError: If an error occurs during transaction.
         """
-        conn = self._conn
-        # Using a long-lived connection with a thread lock for simplicity.
-        try:
-            yield conn
-            conn.commit()
-        except Exception as e:
-            conn.rollback()
-            logger.error("Transaction failed: %s", e)
-            raise DatabaseError(f"Transaction failed: {e}") from e
-        finally:
-            pass
+        with self._lock:
+            self._conn.execute("BEGIN")
+            success = False
+            try:
+                yield self._conn
+                success = True
+            except sqlite3.Error as e:
+                logger.error("Transaction failed: %s", e)
+                # immediate rollback on error
+                try:
+                    self._conn.rollback()
+                except sqlite3.Error as rollback_err:
+                    logger.error("Rollback failed: %s", rollback_err)
+                    raise DatabaseError(f"Rollback failed: {rollback_err}") from rollback_err
+                raise DatabaseError(f"Transaction failed: {e}") from e
+            finally:
+                if success:
+                    self._conn.commit()
 
     def _initialize_db(self) -> None:
         """
@@ -166,6 +188,9 @@ class DatabaseManager:
             self._ensure_column(conn, "auth_tokens", "last_accessed", "TEXT")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_posts_created ON posts(created_at)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_auth_tokens_user ON auth_tokens(user_id)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_posts_publish ON posts(publish_date)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_notifications_expires ON notifications(expires_at)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_notifications_created ON notifications(created_at)")
 
     def _ensure_column(self, conn: sqlite3.Connection, table: str, column: str, definition: str) -> None:
         cols = [row[1] for row in conn.execute(f"PRAGMA table_info({table})")]
@@ -183,87 +208,102 @@ class DatabaseManager:
         Returns:
             sqlite3.Cursor: Cursor after execution.
         """
-        with self._transaction() as conn:
-            # TODO: Surface database errors to callers instead of returning the
-            #       raw cursor so that failures can be handled upstream.
-            return conn.execute(sql, params)
+        try:
+            with self._transaction() as conn:
+                return conn.execute(sql, params)
+        except sqlite3.Error as e:
+            logger.error("SQL execution error. Query: %s, Params: %s, Error: %s", sql, params, e)
+            raise DatabaseError(f"Execution failed for SQL: {sql} with params {params}: {e}") from e
+
+    def _upsert_post(self, post: Post, created_at: str, updated_at: str, conn: sqlite3.Connection) -> None:
+        """
+        Insert or replace a post record in the database.
+
+        Args:
+            post: Post instance.
+            created_at: Creation timestamp string.
+            updated_at: Update timestamp string.
+            conn: Active sqlite3.Connection.
+        """
+        conn.execute(
+            """
+            INSERT OR REPLACE INTO posts (
+                id, title, content, publish_date,
+                category, department, location,
+                is_urgent, has_image, image_url,
+                likes, comments, link,
+                created_at, updated_at
+            ) VALUES (
+                ?, ?, ?, ?,
+                ?, ?, ?,
+                ?, ?, ?,
+                ?, ?, ?,
+                ?, ?
+            )
+            """,
+            (
+                post.id,
+                post.title,
+                post.content,
+                post.publish_date.strftime("%Y-%m-%d %H:%M:%S") if post.publish_date else None,
+                post.category,
+                post.department,
+                post.location,
+                int(post.is_urgent),
+                int(post.has_image),
+                post.image_url,
+                post.likes,
+                post.comments,
+                post.link,
+                created_at,
+                updated_at,
+            ),
+        )
 
     def add_post(self, post: Post) -> bool:
         """
-        Insert or update a post record.
-
-        Args:
-            post: Post model instance to save.
-
-        Returns:
-            bool: True if successful, False otherwise.
+        Insert or update a post record only if title or content has changed.
+        Returns True if we inserted/updated, False if nothing changed.
         """
-        sql = (
-            "INSERT OR REPLACE INTO posts ("
-            "id, title, content, publish_date, location, department,"
-            " category, link, is_urgent, likes, comments, has_image, image_url,"
-            " created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-        )
-        now = datetime.utcnow().isoformat()
-        params = (
-            post.id,
-            post.title,
-            post.content,
-            post.publish_date.isoformat(),
-            post.location,
-            post.department,
-            post.category,
-            post.link,
-            int(post.is_urgent),
-            post.likes,
-            post.comments,
-            int(post.has_image),
-            post.image_url,
-            now,
-            now,
-        )
-        result = self._execute(sql, params)
-        if result:
-            self._add_post_locations(post.id, [post.location])
-        return bool(result)
+        with self._transaction() as conn:
+            existing = self.get_post(post.id)
+
+            # If it exists and neither title nor content changed, do nothing
+            if existing and existing.title == post.title and existing.content == post.content:
+                return False
+
+            utc_time_now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+            created_at = existing.created_at if existing else utc_time_now
+
+            self._upsert_post(post, created_at, utc_time_now, conn)
+
+            # Sync any location mapping
+            self._add_post_locations(post.id, [post.location], conn)
+
+            return True
 
     def add_posts_bulk(self, posts: List[Post]) -> List[Post]:
-        """Insert multiple posts in a single transaction ignoring duplicates."""
-        added: List[Post] = []
-        sql = (
-            "INSERT OR IGNORE INTO posts ("
-            "id, title, content, publish_date, location, department,"
-            " category, link, is_urgent, likes, comments, has_image, image_url,"
-            " created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-        )
-        now = datetime.utcnow().isoformat()
+        """
+        Insert or update multiple posts in one transaction.
+        Returns the list of posts that were actually inserted or updated.
+        """
+        updated: List[Post] = []
         with self._transaction() as conn:
             for post in posts:
-                params = (
-                    post.id,
-                    post.title,
-                    post.content,
-                    post.publish_date.isoformat(),
-                    post.location,
-                    post.department,
-                    post.category,
-                    post.link,
-                    int(post.is_urgent),
-                    post.likes,
-                    post.comments,
-                    int(post.has_image),
-                    post.image_url,
-                    now,
-                    now,
-                )
-                try:
-                    conn.execute(sql, params)
-                    if conn.total_changes > len(added):
-                        added.append(post)
-                        self._add_post_locations(post.id, [post.location], conn)
-                except sqlite3.IntegrityError:
+                existing = self.get_post(post.id)
+
+                # Skip if exists and neither title nor content changed
+                if existing and existing.title == post.title and existing.content == post.content:
                     continue
-        return added
+
+                utc_time_now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+                created_at = existing.created_at if existing else utc_time_now
+
+                self._upsert_post(post, created_at, utc_time_now, conn)
+                self._add_post_locations(post.id, [post.location], conn)
+                updated.append(post)
+
+        return updated
 
     def get_post(self, post_id: str) -> Optional[Post]:
         """
@@ -275,8 +315,11 @@ class DatabaseManager:
         Returns:
             Optional[Post]: Post instance if found, else None.
         """
-        row = self._fetch_one("SELECT * FROM posts WHERE id = ?", (post_id,))
-        return Post.from_dict(dict(row)) if row else None
+        row = self._conn.execute("SELECT * FROM posts WHERE id = ?", (post_id,)).fetchone()
+
+        if not row:
+            return None
+        return Post.from_dict(dict(row))
 
     def get_latest_posts(self, limit: int = 10) -> List[Post]:
         """
@@ -311,10 +354,10 @@ class DatabaseManager:
             notif.title,
             notif.message,
             notif.image_url,
-            notif.created_at.isoformat(),
+            notif.created_at.strftime("%Y-%m-%d %H:%M:%S"),
             notif.is_read,
             notif.is_urgent,
-            notif.expires_at.isoformat(),
+            notif.expires_at.strftime("%Y-%m-%d %H:%M:%S") if notif.expires_at else None,
         )
         return bool(self._execute(sql, params))
 
@@ -333,7 +376,7 @@ class DatabaseManager:
         params: List[Any] = []
         if not include_expired:
             query += " AND (expires_at IS NULL OR expires_at > ?)"
-            params.append(datetime.utcnow().isoformat())
+            params.append(datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"))
         query += " ORDER BY created_at DESC LIMIT ?"
         params.append(limit)
         rows = self._fetch_all(query, tuple(params))
@@ -388,7 +431,7 @@ class DatabaseManager:
         Returns:
             bool: True if operation succeeds.
         """
-        now = datetime.utcnow().isoformat()
+        now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
         return bool(
             self._execute(
                 "INSERT OR REPLACE INTO push_subscriptions"
@@ -619,7 +662,7 @@ class DatabaseManager:
                     "id": post.id,
                     "title": post.title,
                     "content": post.content,
-                    "publish_date": (post.publish_date.isoformat() if post.publish_date else None),
+                    "publish_date": (post.publish_date.strftime("%Y-%m-%d %H:%M:%S") if post.publish_date else None),
                     "category": post.category,
                     "department": post.department,
                     "location": post.location,
@@ -629,8 +672,8 @@ class DatabaseManager:
                     "likes": post.likes,
                     "comments": post.comments,
                     "link": post.link,
-                    "created_at": (post.created_at.isoformat() if post.created_at else None),
-                    "updated_at": (post.updated_at.isoformat() if post.updated_at else None),
+                    "created_at": (post.created_at.strftime("%Y-%m-%d %H:%M:%S") if post.created_at else None),
+                    "updated_at": (post.updated_at.strftime("%Y-%m-%d %H:%M:%S") if post.updated_at else None),
                 }
                 posts_data.append(post_dict)
 
@@ -696,7 +739,14 @@ class DatabaseManager:
         locations: List[str],
         conn: Optional[sqlite3.Connection] = None,
     ) -> None:
-        """Insert mappings between a post and locations."""
+        """
+        Insert mappings between a post and one or more locations.
+
+        Args:
+            post_id (str): The post's unique identifier.
+            locations (List[str]): List of location strings to associate with the post.
+            conn (Optional[sqlite3.Connection], optional): Existing DB connection. If None, uses self._conn.
+        """
         if not locations:
             return
         sql = "INSERT OR IGNORE INTO post_locations (post_id, location) VALUES (?, ?)"
