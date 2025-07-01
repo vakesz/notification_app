@@ -63,6 +63,7 @@ class Config:
 
     # Database
     APP_DATABASE_PATH = os.environ.get("APP_DATABASE_PATH", "db/posts.db")
+    DB_TIMEOUT = int(os.environ.get("DB_TIMEOUT", "30"))
 
     # VAPID keys for Web Push
     PUSH_VAPID_PUBLIC_KEY = os.environ.get("PUSH_VAPID_PUBLIC_KEY")

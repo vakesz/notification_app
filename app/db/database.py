@@ -25,8 +25,7 @@ class DatabaseManager:
     in the notifications application.
 
     Handles table initialization, CRUD operations for
-    posts, notifications, push subscriptions,
-    blog credentials, and settings.
+    posts, notifications, push subscriptions and settings.
     """
 
     _SCHEMA = [
@@ -108,6 +107,12 @@ class DatabaseManager:
         self._conn = self._create_connection()
         self._initialize_db()
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self._close_connection()
+
     def _create_connection(self) -> sqlite3.Connection:
         """
         Create and configure a new database connection.
@@ -121,7 +126,7 @@ class DatabaseManager:
         try:
             conn = sqlite3.connect(
                 self.db_path,
-                timeout=Config.HTTP_TIMEOUT,
+                timeout=Config.DB_TIMEOUT,
                 check_same_thread=False,
                 isolation_level=None,
             )
@@ -131,6 +136,15 @@ class DatabaseManager:
         except sqlite3.Error as e:
             logger.error("Connection error: %s", e)
             raise DatabaseError(f"Connection error: {e}") from e
+
+    def _close_connection(self) -> None:
+        """Close the database connection."""
+        if hasattr(self, "_conn") and self._conn:
+            try:
+                self._conn.close()
+            except Exception as e:
+                logger.error("Error closing database connection: %s", e)
+            self._conn = None
 
     @contextmanager
     def _transaction(self) -> sqlite3.Connection:  # type: ignore
@@ -167,6 +181,10 @@ class DatabaseManager:
             self._ensure_column(conn, "auth_tokens", "last_accessed", "TEXT")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_posts_created ON posts(created_at)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_auth_tokens_user ON auth_tokens(user_id)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_posts_publish ON posts(publish_date);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_notifications_expires ON notifications(expires_at);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_notifications_created ON notifications(created_at);")
+
 
     def _ensure_column(self, conn: sqlite3.Connection, table: str, column: str, definition: str) -> None:
         cols = [row[1] for row in conn.execute(f"PRAGMA table_info({table})")]
@@ -191,6 +209,51 @@ class DatabaseManager:
             logger.error("SQL execution error. Query: %s, Params: %s, Error: %s", sql, params, e)
             raise DatabaseError(f"Execution failed for SQL: {sql} with params {params}: {e}") from e
 
+    def _upsert_post(self, post: Post, created_at: str, updated_at: str, conn: sqlite3.Connection) -> None:
+        """
+        Insert or replace a post record in the database.
+
+        Args:
+            post: Post instance.
+            created_at: Creation timestamp string.
+            updated_at: Update timestamp string.
+            conn: Active sqlite3.Connection.
+        """
+        conn.execute(
+            """
+            INSERT OR REPLACE INTO posts (
+                id, title, content, publish_date,
+                category, department, location,
+                is_urgent, has_image, image_url,
+                likes, comments, link,
+                created_at, updated_at
+            ) VALUES (
+                ?, ?, ?, ?,
+                ?, ?, ?,
+                ?, ?, ?,
+                ?, ?, ?,
+                ?, ?
+            )
+            """,
+            (
+                post.id,
+                post.title,
+                post.content,
+                post.publish_date.strftime("%Y-%m-%d %H:%M:%S") if post.publish_date else None,
+                post.category,
+                post.department,
+                post.location,
+                int(post.is_urgent),
+                int(post.has_image),
+                post.image_url,
+                post.likes,
+                post.comments,
+                post.link,
+                created_at,
+                updated_at,
+            ),
+        )
+
     def add_post(self, post: Post) -> bool:
         """
         Insert or update a post record only if title or content has changed.
@@ -203,44 +266,10 @@ class DatabaseManager:
             if existing and existing.title == post.title and existing.content == post.content:
                 return False
 
-            utc_time_now = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+            utc_time_now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
             created_at = existing.created_at if existing else utc_time_now
 
-            # Upsert every column, updating updated_at
-            conn.execute(
-                """
-                INSERT OR REPLACE INTO posts (
-                    id, title, content, publish_date,
-                    category, department, location,
-                    is_urgent, has_image, image_url,
-                    likes, comments, link,
-                    created_at, updated_at
-                ) VALUES (
-                    ?, ?, ?, ?,
-                    ?, ?, ?,
-                    ?, ?, ?,
-                    ?, ?, ?,
-                    ?, ?
-                )
-                """,
-                (
-                    post.id,
-                    post.title,
-                    post.content,
-                    post.publish_date.strftime('%Y-%m-%d %H:%M:%S') if post.publish_date else None,
-                    post.category,
-                    post.department,
-                    post.location,
-                    int(post.is_urgent),
-                    int(post.has_image),
-                    post.image_url,
-                    post.likes,
-                    post.comments,
-                    post.link,
-                    created_at,
-                    utc_time_now,
-                ),
-            )
+            self._upsert_post(post, created_at, utc_time_now, conn)
 
             # Sync any location mapping
             self._add_post_locations(post.id, [post.location], conn)
@@ -258,50 +287,13 @@ class DatabaseManager:
                 existing = self.get_post(post.id)
 
                 # Skip if exists and neither title nor content changed
-                if (
-                    existing
-                    and existing.title == post.title
-                    and existing.content == post.content
-                ):
+                if existing and existing.title == post.title and existing.content == post.content:
                     continue
 
-                utc_time_now = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+                utc_time_now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
                 created_at = existing.created_at if existing else utc_time_now
 
-                conn.execute(
-                    """
-                    INSERT OR REPLACE INTO posts (
-                        id, title, content, publish_date,
-                        category, department, location,
-                        is_urgent, has_image, image_url,
-                        likes, comments, link,
-                        created_at, updated_at
-                    ) VALUES (
-                        ?, ?, ?, ?,
-                        ?, ?, ?,
-                        ?, ?, ?,
-                        ?, ?, ?,
-                        ?, ?
-                    )
-                    """,
-                    (
-                        post.id,
-                        post.title,
-                        post.content,
-                        post.publish_date.strftime('%Y-%m-%d %H:%M:%S') if post.publish_date else None,
-                        post.category,
-                        post.department,
-                        post.location,
-                        int(post.is_urgent),
-                        int(post.has_image),
-                        post.image_url,
-                        post.likes,
-                        post.comments,
-                        post.link,
-                        created_at,
-                        utc_time_now,
-                    ),
-                )
+                self._upsert_post(post, created_at, utc_time_now, conn)
                 self._add_post_locations(post.id, [post.location], conn)
                 updated.append(post)
 
@@ -317,19 +309,11 @@ class DatabaseManager:
         Returns:
             Optional[Post]: Post instance if found, else None.
         """
-        with self._transaction() as conn:
-            row = conn.execute(
-                """
-                SELECT * FROM posts WHERE id = ?
-                """,
-                (post_id,),
-            ).fetchone()
+        row = self._conn.execute("SELECT * FROM posts WHERE id = ?", (post_id,)).fetchone()
 
-            if not row:
-                return None
-
-            # sqlite3.Row is dict‐like, and from_dict will parse ISO timestamps
-            return Post.from_dict(dict(row))
+        if not row:
+            return None
+        return Post.from_dict(dict(row))
 
     def get_latest_posts(self, limit: int = 10) -> List[Post]:
         """
@@ -364,10 +348,10 @@ class DatabaseManager:
             notif.title,
             notif.message,
             notif.image_url,
-            notif.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+            notif.created_at.strftime("%Y-%m-%d %H:%M:%S"),
             notif.is_read,
             notif.is_urgent,
-            notif.expires_at.strftime('%Y-%m-%d %H:%M:%S'),
+            notif.expires_at.strftime("%Y-%m-%d %H:%M:%S") if notif.expires_at else None,
         )
         return bool(self._execute(sql, params))
 
@@ -386,7 +370,7 @@ class DatabaseManager:
         params: List[Any] = []
         if not include_expired:
             query += " AND (expires_at IS NULL OR expires_at > ?)"
-            params.append(datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'))
+            params.append(datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"))
         query += " ORDER BY created_at DESC LIMIT ?"
         params.append(limit)
         rows = self._fetch_all(query, tuple(params))
@@ -441,7 +425,7 @@ class DatabaseManager:
         Returns:
             bool: True if operation succeeds.
         """
-        now = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+        now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
         return bool(
             self._execute(
                 "INSERT OR REPLACE INTO push_subscriptions"
@@ -672,7 +656,7 @@ class DatabaseManager:
                     "id": post.id,
                     "title": post.title,
                     "content": post.content,
-                    "publish_date": (post.publish_date.strftime('%Y-%m-%d %H:%M:%S') if post.publish_date else None),
+                    "publish_date": (post.publish_date.strftime("%Y-%m-%d %H:%M:%S") if post.publish_date else None),
                     "category": post.category,
                     "department": post.department,
                     "location": post.location,
@@ -682,8 +666,8 @@ class DatabaseManager:
                     "likes": post.likes,
                     "comments": post.comments,
                     "link": post.link,
-                    "created_at": (post.created_at.strftime('%Y-%m-%d %H:%M:%S') if post.created_at else None),
-                    "updated_at": (post.updated_at.strftime('%Y-%m-%d %H:%M:%S') if post.updated_at else None),
+                    "created_at": (post.created_at.strftime("%Y-%m-%d %H:%M:%S") if post.created_at else None),
+                    "updated_at": (post.updated_at.strftime("%Y-%m-%d %H:%M:%S") if post.updated_at else None),
                 }
                 posts_data.append(post_dict)
 
