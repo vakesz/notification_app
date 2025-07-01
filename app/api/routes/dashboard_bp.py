@@ -33,7 +33,7 @@ dashboard_bp = Blueprint("dashboard_bp", __name__)
 logger = logging.getLogger(__name__)
 
 # Initialize rate limiter
-flask_limiter = Limiter(app=current_app, key_func=get_remote_address, default_limits=["200 per day", "50 per hour"])
+limiter = Limiter(key_func=get_remote_address)
 
 # --- Helper Functions ---
 
@@ -155,7 +155,7 @@ def dashboard() -> str:
 
 
 @dashboard_bp.route("/refresh")
-@flask_limiter.limit("1/60")  # Limit to 1 refresh per minute
+@limiter.limit("5 per minute")
 @require_auth
 def refresh_posts() -> Response:
     """Trigger a dashboard refresh."""

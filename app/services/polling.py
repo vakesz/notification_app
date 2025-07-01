@@ -198,14 +198,14 @@ class PollingService:
         """Trigger a manual poll, and the scheduler itself will handle it."""
         job = self.scheduler.get_job(self.SCHEDULER_NAME)
         if not job:
-            logger.error("No job with id %s found", self.SCHEDULER_NAME)
+            logger.error("No polling job found with id %s", self.SCHEDULER_NAME)
             return
 
         try:
             job.modify(next_run_time=datetime.utcnow())
-            logger.info("Manual poll triggered")
+            logger.info("Manual poll scheduled")
         except Exception as e:
-            logger.error("Failed to trigger manual poll: %s", e)
+            logger.error("Unable to schedule manual poll: %s", e)
             self._last_error = str(e)
 
     def get_status(self) -> Dict[str, Any]:
