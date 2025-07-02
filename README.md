@@ -200,7 +200,8 @@ gunicorn -w 4 -b 0.0.0.0:5000 "app.web.main:create_app()"
 
 The application provides several API endpoints:
 
-- `POST /subscribe` - Subscribe to push notifications
+- `POST /api/subscriptions` - Subscribe to push notifications
+- `DELETE /api/subscriptions` - Unsubscribe from push notifications
 - `GET /api/notifications/status` - Get notification summary
 - `POST /api/notifications/mark-read` - Mark notifications as read
 - `POST /api/notifications/settings` - Update notification settings

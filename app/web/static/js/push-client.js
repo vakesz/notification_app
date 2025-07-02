@@ -117,25 +117,23 @@
         console.log("New subscription obtained:", subscription);
       } else {
         console.log("Already subscribed:", subscription);
-      }
+      }        // POST subscription to backend with retry
+        await retryOperation(async () => {
+          const response = await fetch("/api/subscriptions", {
+            method: "POST",
+            body: JSON.stringify(subscription),
+            headers: {
+              "Content-Type": "application/json",
+              "X-CSRFToken": CSRF_TOKEN_PUSH,
+            },
+          });
 
-      // POST subscription to backend with retry
-      await retryOperation(async () => {
-        const response = await fetch("/subscribe", {
-          method: "POST",
-          body: JSON.stringify(subscription),
-          headers: {
-            "Content-Type": "application/json",
-            "X-CSRFToken": CSRF_TOKEN_PUSH,
-          },
+          if (!response.ok) {
+            throw new Error(`Failed to save subscription: ${response.status}`);
+          }
+
+          console.log("Subscription sent to server.");
         });
-
-        if (!response.ok) {
-          throw new Error(`Failed to save subscription: ${response.status}`);
-        }
-
-        console.log("Subscription sent to server.");
-      });
 
       // Set up subscription expiration handling
       setupSubscriptionExpirationHandling(subscription);
@@ -192,6 +190,23 @@
       for (const registration of registrations) {
         const subscription = await registration.pushManager.getSubscription();
         if (subscription) {
+          // Remove subscription from server
+          try {
+            const response = await fetch("/api/subscriptions", {
+              method: "DELETE",
+              body: JSON.stringify(subscription),
+              headers: {
+                "Content-Type": "application/json",
+                "X-CSRFToken": CSRF_TOKEN_PUSH,
+              },
+            });
+            if (response.ok) {
+              console.log("Subscription removed from server");
+            }
+          } catch (error) {
+            console.warn("Failed to remove subscription from server:", error);
+          }
+
           await subscription.unsubscribe();
           console.log("Unsubscribed from push notifications");
         }
