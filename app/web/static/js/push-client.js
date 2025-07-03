@@ -117,23 +117,24 @@
         console.log("New subscription obtained:", subscription);
       } else {
         console.log("Already subscribed:", subscription);
-      }        // POST subscription to backend with retry
-        await retryOperation(async () => {
-          const response = await fetch("/api/subscriptions", {
-            method: "POST",
-            body: JSON.stringify(subscription),
-            headers: {
-              "Content-Type": "application/json",
-              "X-CSRFToken": CSRF_TOKEN_PUSH,
-            },
-          });
-
-          if (!response.ok) {
-            throw new Error(`Failed to save subscription: ${response.status}`);
-          }
-
-          console.log("Subscription sent to server.");
+      }
+      // POST subscription to backend with retry
+      await retryOperation(async () => {
+        const response = await fetch("/api/subscriptions", {
+          method: "POST",
+          body: JSON.stringify(subscription),
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": CSRF_TOKEN_PUSH,
+          },
         });
+
+        if (!response.ok) {
+          throw new Error(`Failed to save subscription: ${response.status}`);
+        }
+
+        console.log("Subscription sent to server.");
+      });
 
       // Set up subscription expiration handling
       setupSubscriptionExpirationHandling(subscription);
@@ -202,6 +203,11 @@
             });
             if (response.ok) {
               console.log("Subscription removed from server");
+            }
+            else {
+              console.error(
+                `Failed to remove subscription from server: ${response.status}`,
+              );
             }
           } catch (error) {
             console.warn("Failed to remove subscription from server:", error);
