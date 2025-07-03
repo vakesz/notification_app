@@ -50,6 +50,7 @@ class Config:
     HTTP_TIMEOUT = int(os.environ.get("HTTP_TIMEOUT", "30"))
     HTTP_MAX_RETRIES = int(os.environ.get("HTTP_MAX_RETRIES", "3"))
     HTTP_RETRY_BACKOFF = float(os.environ.get("HTTP_RETRY_BACKOFF", "1"))
+
     # Polling interval in minutes
     POLLING_INTERVAL_MINUTES = int(os.environ.get("POLLING_INTERVAL_MINUTES", "15"))
     POLLING_BACKOFF_FACTOR = float(os.environ.get("POLLING_BACKOFF_FACTOR", "1.5"))
