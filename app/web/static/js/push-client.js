@@ -191,24 +191,22 @@
       for (const registration of registrations) {
         const subscription = await registration.pushManager.getSubscription();
         if (subscription) {
-          // Remove subscription from server
+          // Remove subscription from server with retry
           try {
-            const response = await fetch("/api/subscriptions", {
-              method: "DELETE",
-              body: JSON.stringify(subscription),
-              headers: {
-                "Content-Type": "application/json",
-                "X-CSRFToken": CSRF_TOKEN_PUSH,
-              },
-            });
-            if (response.ok) {
+            await retryOperation(async () => {
+              const response = await fetch("/api/subscriptions", {
+                method: "DELETE",
+                body: JSON.stringify(subscription),
+                headers: {
+                  "Content-Type": "application/json",
+                  "X-CSRFToken": CSRF_TOKEN_PUSH,
+                },
+              });
+              if (!response.ok) {
+                throw new Error(`Failed to remove subscription from server: ${response.status}`);
+              }
               console.log("Subscription removed from server");
-            }
-            else {
-              console.error(
-                `Failed to remove subscription from server: ${response.status}`,
-              );
-            }
+            });
           } catch (error) {
             console.warn("Failed to remove subscription from server:", error);
           }

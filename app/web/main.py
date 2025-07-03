@@ -165,6 +165,8 @@ def create_app(config_name: str = "default") -> Flask:
             sub = request.get_json(silent=True)
             if not sub:
                 return jsonify({"error": "No subscription data"}), 400
+            if not _validate_subscription(sub):
+                return jsonify({"error": "Invalid subscription object"}), 400
             flask_app.database_manager.remove_push_subscription(sub)
             flask_app.logger.info("Subscription removed: %s", sub.get("endpoint", "unknown"))
             return jsonify({"message": "Subscription removed"}), 200
