@@ -28,6 +28,7 @@ If applicable, add screenshots or logs to help explain your problem.
 - OS: [e.g. iOS, Ubuntu 20.04]
 - Browser [e.g. chrome, safari]
 - Version [e.g. v1.2.3 of notification_app]
+- Relevant environment variables (e.g. BLOG_API_URL, POLLING_INTERVAL_MINUTES, etc):
 
 **Additional context**
 Add any other context about the problem here.

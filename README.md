@@ -101,7 +101,7 @@ This Flask-based application automatically monitors blog content and delivers pe
    # Application Settings
    APP_NAME=Blog Notifications Parser
    APP_DATABASE_PATH=db/posts.db
-   POLLING_INTERVAL_MIN=15
+   POLLING_INTERVAL_MINUTES=15
    HTTP_TIMEOUT=30
 
    # Optional Advanced Settings

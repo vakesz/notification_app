@@ -31,7 +31,7 @@ class Config:
 
     # Application
     APP_NAME = os.environ.get("APP_NAME", "Blog Notifications Parser")
-    BLOG_API_URL = os.environ.get("BLOG_API_BASE_URL")
+    BLOG_API_URL = os.environ.get("BLOG_API_URL")
 
     # Blog API authentication
     BLOG_API_AUTH_METHOD = os.environ.get("BLOG_API_AUTH_METHOD", "none").lower()
@@ -50,8 +50,9 @@ class Config:
     HTTP_TIMEOUT = int(os.environ.get("HTTP_TIMEOUT", "30"))
     HTTP_MAX_RETRIES = int(os.environ.get("HTTP_MAX_RETRIES", "3"))
     HTTP_RETRY_BACKOFF = float(os.environ.get("HTTP_RETRY_BACKOFF", "1"))
+
     # Polling interval in minutes
-    POLLING_INTERVAL_MINUTES = int(os.environ.get("POLLING_INTERVAL_MIN", "15"))
+    POLLING_INTERVAL_MINUTES = int(os.environ.get("POLLING_INTERVAL_MINUTES", "15"))
     POLLING_BACKOFF_FACTOR = float(os.environ.get("POLLING_BACKOFF_FACTOR", "1.5"))
     POLLING_MAX_BACKOFF = int(os.environ.get("POLLING_MAX_BACKOFF", "3600"))  # 1 hour
 
@@ -109,11 +110,11 @@ class Config:
         if cls.HTTP_RETRY_BACKOFF <= 0:
             raise ValueError("HTTP_RETRY_BACKOFF must be positive")
         if cls.POLLING_INTERVAL_MINUTES < 1:
-            raise ValueError("POLLING_INTERVAL_MIN must be at least 1 minute")
+            raise ValueError("POLLING_INTERVAL_MINUTES must be at least 1 minute")
         if cls.POLLING_BACKOFF_FACTOR < 1:
             raise ValueError("POLLING_BACKOFF_FACTOR must be at least 1")
         if cls.POLLING_MAX_BACKOFF < cls.POLLING_INTERVAL_MINUTES:
-            raise ValueError("POLLING_MAX_BACKOFF must be greater than POLLING_INTERVAL_MIN")
+            raise ValueError("POLLING_MAX_BACKOFF must be greater than POLLING_INTERVAL_MINUTES")
         if cls.AUTH_TOKEN_TTL_DAYS < 1:
             raise ValueError("AUTH_TOKEN_TTL_DAYS must be at least 1 day")
         if cls.PUSH_TTL < 0:
