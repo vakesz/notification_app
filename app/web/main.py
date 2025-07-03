@@ -133,9 +133,10 @@ def create_app(config_name: str = "default") -> Flask:
             and all(k in data["keys"] for k in ("p256dh", "auth"))
         )
 
-    @flask_app.route("/subscribe", methods=["POST"])
+    @flask_app.route("/api/subscriptions", methods=["POST"])
     @limiter.limit("15 per minute")
-    def subscribe() -> tuple[dict | str, int]:
+    def manage_subscription() -> tuple[dict | str, int]:
+        """Create or update a push subscription."""
         sub = request.get_json(silent=True)
         if not _validate_subscription(sub):
             return jsonify({"error": "Invalid subscription object"}), 400
@@ -156,6 +157,23 @@ def create_app(config_name: str = "default") -> Flask:
         flask_app.logger.info("Subscription added: %s | user=%s", sub["endpoint"], user_key)
         return jsonify({"message": "Subscription successful"}), 201
 
+    @flask_app.route("/api/subscriptions", methods=["DELETE"])
+    @limiter.limit("15 per minute")
+    def remove_subscription() -> tuple[dict, int]:
+        """Remove a push subscription."""
+        try:
+            sub = request.get_json(silent=True)
+            if not sub:
+                return jsonify({"error": "No subscription data"}), 400
+            if not _validate_subscription(sub):
+                return jsonify({"error": "Invalid subscription object"}), 400
+            flask_app.database_manager.remove_push_subscription(sub)
+            flask_app.logger.info("Subscription removed: %s", sub.get("endpoint", "unknown"))
+            return jsonify({"message": "Subscription removed"}), 200
+        except (ValueError, TypeError, KeyError) as e:
+            flask_app.logger.error("Deregister error: %s", e)
+            return jsonify({"error": str(e)}), 500
+
     @flask_app.route("/notify", methods=["GET"])
     @limiter.limit("15 per minute")
     def notify() -> tuple[dict, int]:
@@ -166,32 +184,6 @@ def create_app(config_name: str = "default") -> Flask:
         else:
             flask_app.logger.error("Failed to send test notification")
             return jsonify({"error": "Failed to send notification"}), 500
-
-    # API for register/deregister
-    @flask_app.route("/api/notifications/register", methods=["POST"])
-    def api_register() -> tuple[dict, int]:
-        try:
-            sub = request.get_json(silent=True)
-            if not sub:
-                return jsonify({"error": "No subscription data"}), 400
-            db_manager.add_push_subscription(sub)
-            return jsonify({"message": "Registered."}), 200
-        except (ValueError, TypeError, KeyError) as e:
-            flask_app.logger.error("Register error: %s", e)
-            return jsonify({"error": str(e)}), 500
-
-    @flask_app.route("/api/notifications/deregister", methods=["POST"])
-    @limiter.limit("15 per minute")
-    def api_deregister() -> tuple[dict, int]:
-        try:
-            sub = request.get_json(silent=True)
-            if not sub:
-                return jsonify({"error": "No subscription data"}), 400
-            db_manager.remove_push_subscription(sub)
-            return jsonify({"message": "Deregistered."}), 200
-        except (ValueError, TypeError, KeyError) as e:
-            flask_app.logger.error("Deregister error: %s", e)
-            return jsonify({"error": str(e)}), 500
 
     flask_app.logger.info("Application initialized successfully")
     return flask_app
