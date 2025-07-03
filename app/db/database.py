@@ -44,10 +44,18 @@ class DatabaseManager:
             "notifications",
             (
                 "id INTEGER PRIMARY KEY AUTOINCREMENT, post_id TEXT, message TEXT NOT NULL,"
-                " title TEXT NOT NULL, image_url TEXT,"
-                " is_read INTEGER DEFAULT 0, is_urgent INTEGER DEFAULT 0,"
+                " title TEXT NOT NULL, image_url TEXT, is_urgent INTEGER DEFAULT 0,"
                 " created_at TEXT DEFAULT CURRENT_TIMESTAMP, expires_at TEXT,"
                 " FOREIGN KEY(post_id) REFERENCES posts(id)"
+            ),
+        ),
+        (
+            "user_notifications",
+            (
+                "id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL,"
+                " notification_id INTEGER NOT NULL, is_read INTEGER DEFAULT 0,"
+                " read_at TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP,"
+                " FOREIGN KEY(notification_id) REFERENCES notifications(id) ON DELETE CASCADE"
             ),
         ),
         (
@@ -55,7 +63,7 @@ class DatabaseManager:
             (
                 "id INTEGER PRIMARY KEY AUTOINCREMENT, endpoint TEXT UNIQUE NOT NULL,"
                 " auth TEXT NOT NULL, p256dh TEXT NOT NULL, user_key TEXT,"
-                " created_at TEXT DEFAULT CURRENT_TIMESTAMP,"
+                " device_id TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP,"
                 " updated_at TEXT DEFAULT CURRENT_TIMESTAMP, last_used TEXT,"
                 " is_active INTEGER DEFAULT 1"
             ),
@@ -186,11 +194,26 @@ class DatabaseManager:
                 conn.execute(f"CREATE TABLE IF NOT EXISTS {table} ({definition})")
             self._ensure_column(conn, "auth_tokens", "user_id", "TEXT")
             self._ensure_column(conn, "auth_tokens", "last_accessed", "TEXT")
+            self._ensure_column(conn, "push_subscriptions", "device_id", "TEXT")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_posts_created ON posts(created_at)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_auth_tokens_user ON auth_tokens(user_id)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_posts_publish ON posts(publish_date)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_notifications_expires ON notifications(expires_at)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_notifications_created ON notifications(created_at)")
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_user_notifications_user_read " "ON user_notifications(user_id, is_read)"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_user_notifications_notification "
+                "ON user_notifications(notification_id)"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user_device "
+                "ON push_subscriptions(user_key, device_id)"
+            )
+
+        # Run migration after schema is set up
+        self._migrate_notifications_schema()
 
     def _ensure_column(self, conn: sqlite3.Connection, table: str, column: str, definition: str) -> None:
         cols = [row[1] for row in conn.execute(f"PRAGMA table_info({table})")]
@@ -319,7 +342,7 @@ class DatabaseManager:
 
         if not row:
             return None
-        return Post.from_dict(dict(row))
+        return Post.from_database_row(dict(row))
 
     def get_latest_posts(self, limit: int = 10) -> List[Post]:
         """
@@ -332,9 +355,9 @@ class DatabaseManager:
             List[Post]: List of retrieved posts.
         """
         rows = self._fetch_all("SELECT * FROM posts ORDER BY publish_date DESC LIMIT ?", (limit,))
-        return [Post.from_dict(dict(r)) for r in rows]
+        return [Post.from_database_row(dict(r)) for r in rows]
 
-    def add_notification(self, notif: Notification) -> bool:
+    def add_notification(self, notif: Notification) -> Optional[int]:
         """
         Create a new notification entry.
 
@@ -342,12 +365,12 @@ class DatabaseManager:
             notif: Notification model instance.
 
         Returns:
-            bool: True if insert succeeds, False otherwise.
+            Optional[int]: The notification ID if insert succeeds, None otherwise.
         """
         sql = (
             "INSERT INTO notifications ("
-            "post_id, title, message, image_url, created_at, is_read, is_urgent, expires_at)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+            "post_id, title, message, image_url, created_at, is_urgent, expires_at)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?)"
         )
         params = (
             notif.post_id,
@@ -355,41 +378,98 @@ class DatabaseManager:
             notif.message,
             notif.image_url,
             notif.created_at.strftime("%Y-%m-%d %H:%M:%S"),
-            notif.is_read,
             notif.is_urgent,
             notif.expires_at.strftime("%Y-%m-%d %H:%M:%S") if notif.expires_at else None,
         )
-        return bool(self._execute(sql, params))
+        cursor = self._execute(sql, params)
+        return cursor.lastrowid if cursor else None
 
-    def get_notifications(self, limit: int = 10, include_expired: bool = False) -> List[Notification]:
+    def get_notifications(self, user_id: str, limit: int = 10, include_expired: bool = False) -> List[Dict[str, Any]]:
         """
-        Retrieve recent notifications, optionally including expired ones.
+        Retrieve recent notifications for a specific user.
 
         Args:
+            user_id: User identifier
             limit: Max number of notifications.
             include_expired: Flag to include expired notifications.
 
         Returns:
-            List[Notification]: List of notifications.
-        """
-        query = "SELECT * FROM notifications WHERE 1=1"
-        params: List[Any] = []
-        if not include_expired:
-            query += " AND (expires_at IS NULL OR expires_at > ?)"
-            params.append(datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"))
-        query += " ORDER BY created_at DESC LIMIT ?"
-        params.append(limit)
-        rows = self._fetch_all(query, tuple(params))
-        return [Notification.from_dict(dict(r)) for r in rows]
+            List[Dict[str, Any]]: List of user notifications with read status.
 
-    def mark_notifications_read(self) -> bool:
+        Raises:
+            ValueError: If user_id is empty or None
+            DatabaseError: If user_id doesn't match authenticated user (403 Forbidden equivalent)
         """
-        Mark all notifications as read.
+        if not user_id:
+            raise ValueError("User ID is required")
+
+        query = """
+            SELECT n.*, un.is_read, un.read_at, un.created_at as user_notification_created_at
+            FROM notifications n
+            JOIN user_notifications un ON un.notification_id = n.id
+            WHERE un.user_id = ?
+        """
+        params = [user_id]
+
+        if not include_expired:
+            query += " AND (n.expires_at IS NULL OR n.expires_at > ?)"
+            params.append(datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"))
+
+        query += " ORDER BY n.created_at DESC LIMIT ?"
+        params.append(limit)
+
+        rows = self._fetch_all(query, tuple(params))
+        return [dict(row) for row in rows]
+
+    def mark_notifications_read(self, user_id: str, notification_ids: List[int]) -> bool:
+        """
+        Mark specific notifications as read for a user. Enforces user scoping.
+
+        Args:
+            user_id: User identifier - must match the authenticated user
+            notification_ids: List of notification IDs to mark as read
 
         Returns:
-            bool: True if update succeeds, False otherwise.
+            bool: True if update succeeds, False otherwise
+
+        Raises:
+            ValueError: If user_id is empty or None
+            DatabaseError: If attempting to mark notifications belonging to another user (403 Forbidden)
         """
-        return bool(self._execute("UPDATE notifications SET is_read = 1"))
+        if not user_id:
+            raise ValueError("User ID is required")
+
+        if not notification_ids:
+            return True
+
+        # First verify all notifications belong to this user
+        placeholders = ",".join("?" * len(notification_ids))
+        verify_query = f"""
+            SELECT notification_id FROM user_notifications
+            WHERE user_id = ? AND notification_id IN ({placeholders})
+        """
+        verify_params = [user_id] + notification_ids
+
+        owned_notifications = self._fetch_all(verify_query, tuple(verify_params))
+        owned_ids = [row["notification_id"] for row in owned_notifications]
+
+        # Check if user is trying to access notifications they don't own
+        unauthorized_ids = set(notification_ids) - set(owned_ids)
+        if unauthorized_ids:
+            raise DatabaseError(
+                f"403 Forbidden: Cannot access notifications {list(unauthorized_ids)} for user {user_id}"
+            )
+
+        # Mark notifications as read only for this user
+        update_query = f"""
+            UPDATE user_notifications
+            SET is_read = 1, read_at = CURRENT_TIMESTAMP
+            WHERE user_id = ? AND notification_id IN ({placeholders})
+        """
+        update_params = [user_id] + notification_ids
+
+        cursor = self._execute(update_query, tuple(update_params))
+        return cursor.rowcount > 0 if cursor else False
 
     def cleanup_expired_notifications(self) -> int:
         """
@@ -401,47 +481,39 @@ class DatabaseManager:
         cursor = self._execute("DELETE FROM notifications WHERE expires_at <= datetime('now')")
         return cursor.rowcount if cursor else 0
 
-    def get_notification_summary(self) -> Dict[str, int]:
-        """
-        Compute summary counts for active notifications.
-
-        Returns:
-            Dict[str, int]: Counts for total, unread, and urgent_unread.
-        """
-        sql = (
-            "SELECT COUNT(*) AS total,"
-            " SUM(CASE WHEN is_read = 0 THEN 1 ELSE 0 END) AS unread,"
-            " SUM(CASE WHEN is_read = 0 AND is_urgent = 1 THEN 1 ELSE 0 END) AS urgent_unread"
-            " FROM notifications WHERE expires_at > datetime('now')"
-        )
-        row = self._fetch_one(sql)
-        return (
-            {k: row[k] or 0 for k in ("total", "unread", "urgent_unread")}
-            if row
-            else {"total": 0, "unread": 0, "urgent_unread": 0}
-        )
-
-    def add_push_subscription(self, info: Dict[str, Any], user_key: Optional[str] = None) -> bool:
+    def add_push_subscription(
+        self, info: Dict[str, Any], user_key: Optional[str] = None, device_id: Optional[str] = None
+    ) -> bool:
         """
         Insert or update a push subscription record.
 
         Args:
             info: Subscription details with endpoint and keys.
+            user_key: User identifier
+            device_id: Device identifier for multi-device support
 
         Returns:
             bool: True if operation succeeds.
         """
         now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+
+        # Generate device_id from endpoint if not provided for backward compatibility
+        if device_id is None:
+            import hashlib
+
+            device_id = hashlib.md5(info["endpoint"].encode()).hexdigest()[:16]
+
         return bool(
             self._execute(
                 "INSERT OR REPLACE INTO push_subscriptions"
-                " (endpoint, auth, p256dh, user_key, created_at, updated_at, is_active)"
-                " VALUES (?, ?, ?, ?, ?, ?, 1)",
+                " (endpoint, auth, p256dh, user_key, device_id, created_at, updated_at, is_active)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, 1)",
                 (
                     info["endpoint"],
                     info["keys"]["auth"],
                     info["keys"]["p256dh"],
                     user_key,
+                    device_id,
                     now,
                     now,
                 ),
@@ -458,33 +530,50 @@ class DatabaseManager:
         row = self._fetch_one(query + " LIMIT 1", tuple(params))
         return row is not None
 
-    def remove_push_subscription(self, info: Dict[str, Any]) -> bool:
+    def remove_push_subscription(
+        self, info: Dict[str, Any], user_key: Optional[str] = None, device_id: Optional[str] = None
+    ) -> bool:
         """
-        Remove a push subscription by its endpoint.
+        Remove a push subscription by its endpoint and device_id for multi-device support.
+        Always removes only the specified device to prevent accidental removal of other devices.
 
         Args:
             info: Subscription info containing endpoint.
+            user_key: User identifier for validation.
+            device_id: Device identifier - required for multi-device support.
 
         Returns:
             bool: True if deletion succeeds.
         """
-        return bool(self._execute("DELETE FROM push_subscriptions WHERE endpoint = ?", (info["endpoint"],)))
+        # Generate device_id from endpoint if not provided for backward compatibility
+        if device_id is None:
+            import hashlib
 
-    def get_all_push_subscriptions(self) -> List[Dict[str, Any]]:
-        """
-        List all active push subscriptions.
+            device_id = hashlib.md5(info["endpoint"].encode()).hexdigest()[:16]
 
-        Returns:
-            List[Dict[str, Any]]: Active subscriptions with endpoint and keys.
-        """
-        rows = self._fetch_all("SELECT endpoint, auth, p256dh FROM push_subscriptions WHERE is_active = 1")
-        return [
-            {
-                "endpoint": r["endpoint"],
-                "keys": {"auth": r["auth"], "p256dh": r["p256dh"]},
-            }
-            for r in rows
-        ]
+        if user_key and device_id:
+            # Remove specific device subscription for user (preferred path)
+            return bool(
+                self._execute(
+                    "DELETE FROM push_subscriptions WHERE endpoint = ? AND user_key = ? AND device_id = ?",
+                    (info["endpoint"], user_key, device_id),
+                )
+            )
+        elif device_id:
+            # Remove by device_id and endpoint (fallback)
+            return bool(
+                self._execute(
+                    "DELETE FROM push_subscriptions WHERE endpoint = ? AND device_id = ?",
+                    (info["endpoint"], device_id),
+                )
+            )
+        else:
+            # Endpoint-only removal (legacy fallback - logs warning)
+            logger.warning(
+                "Removing push subscription by endpoint only. "
+                "Consider providing device_id for better multi-device support."
+            )
+            return bool(self._execute("DELETE FROM push_subscriptions WHERE endpoint = ?", (info["endpoint"],)))
 
     def update_subscription_last_used(self, endpoint: str) -> bool:
         """Update the last_used timestamp for a push subscription."""
@@ -643,95 +732,400 @@ class DatabaseManager:
         )
         return row["cnt"] if row else 0
 
-    def export_posts_to_json(self, file_path: str) -> int:
+    def get_push_subscriptions_for_users(self, user_keys: List[str], urgent: bool = False) -> List[Dict[str, Any]]:
         """
-        Export all posts to a JSON file.
+        Get push subscriptions for specific users.
 
         Args:
-            file_path: Path where to save the JSON file.
+            user_keys: List of user keys to get subscriptions for. If empty, returns all active subscriptions
+                      only when urgent=True, otherwise returns empty list.
+            urgent: If True, allows returning all subscriptions when user_keys is empty.
 
         Returns:
-            int: Number of posts exported.
+            List[Dict[str, Any]]: Active subscriptions for the specified users with endpoint, keys, and user_key.
+        """
+        if not user_keys:
+            if urgent:
+                # Return all active subscriptions when urgent and no specific users requested
+                query = """
+                    SELECT endpoint, auth, p256dh, user_key, device_id
+                    FROM push_subscriptions
+                    WHERE is_active = 1
+                """
+                rows = self._fetch_all(query, ())
+            else:
+                # Return empty list when not urgent and no users specified
+                return []
+        else:
+            placeholders = ",".join("?" * len(user_keys))
+            query = f"""
+                SELECT endpoint, auth, p256dh, user_key, device_id
+                FROM push_subscriptions
+                WHERE user_key IN ({placeholders}) AND is_active = 1
+            """
+            rows = self._fetch_all(query, tuple(user_keys))
+
+        return [
+            {
+                "endpoint": r["endpoint"],
+                "keys": {"auth": r["auth"], "p256dh": r["p256dh"]},
+                "user_key": r["user_key"],
+                "device_id": r["device_id"],
+            }
+            for r in rows
+        ]
+
+    def add_user_notification(self, user_id: str, notification_id: int) -> bool:
+        """
+        Create a user notification entry for a specific user and notification.
+
+        Args:
+            user_id: User identifier
+            notification_id: Notification ID
+
+        Returns:
+            bool: True if insert succeeds, False otherwise.
+        """
+        sql = (
+            "INSERT INTO user_notifications (user_id, notification_id, is_read, created_at) "
+            "VALUES (?, ?, 0, CURRENT_TIMESTAMP)"
+        )
+        return bool(self._execute(sql, (user_id, notification_id)))
+
+    def add_user_notifications_bulk(self, notification_id: int, user_ids: List[str]) -> bool:
+        """
+        Create user notification entries for multiple users for a single notification.
+
+        Args:
+            notification_id: Notification ID
+            user_ids: List of user identifiers
+
+        Returns:
+            bool: True if all inserts succeed, False otherwise.
+        """
+        if not user_ids:
+            return True
+
+        with self._transaction() as conn:
+            for user_id in user_ids:
+                conn.execute(
+                    "INSERT INTO user_notifications (user_id, notification_id, is_read, created_at) "
+                    "VALUES (?, ?, 0, CURRENT_TIMESTAMP)",
+                    (user_id, notification_id),
+                )
+        return True
+
+    def mark_user_notification_read(self, user_id: str, notification_id: int) -> bool:
+        """
+        Mark a specific notification as read for a user.
+
+        Args:
+            user_id: User identifier
+            notification_id: Notification ID
+
+        Returns:
+            bool: True if update succeeds, False otherwise.
+        """
+        sql = (
+            "UPDATE user_notifications SET is_read = 1, read_at = CURRENT_TIMESTAMP "
+            "WHERE user_id = ? AND notification_id = ?"
+        )
+        cursor = self._execute(sql, (user_id, notification_id))
+        return cursor.rowcount > 0 if cursor else False
+
+    def mark_all_user_notifications_read(self, user_id: str) -> bool:
+        """
+        Mark all notifications as read for a specific user.
+
+        Args:
+            user_id: User identifier
+
+        Returns:
+            bool: True if update succeeds, False otherwise.
+        """
+        sql = (
+            "UPDATE user_notifications SET is_read = 1, read_at = CURRENT_TIMESTAMP "
+            "WHERE user_id = ? AND is_read = 0"
+        )
+        cursor = self._execute(sql, (user_id,))
+        return cursor.rowcount > 0 if cursor else False
+
+    def get_user_notifications(self, user_id: str, limit: int = 10, unread_only: bool = False) -> List[Dict[str, Any]]:
+        """
+        Get notifications for a specific user with read status.
+
+        Args:
+            user_id: User identifier
+            limit: Maximum number of notifications to return
+            unread_only: If True, only return unread notifications
+
+        Returns:
+            List[Dict[str, Any]]: List of notifications with read status.
+        """
+        query = """
+            SELECT n.*, un.is_read, un.read_at, un.created_at as user_notification_created_at
+            FROM notifications n
+            JOIN user_notifications un ON un.notification_id = n.id
+            WHERE un.user_id = ?
+        """
+        params = [user_id]
+
+        if unread_only:
+            query += " AND un.is_read = 0"
+
+        query += " AND (n.expires_at IS NULL OR n.expires_at > datetime('now'))"
+        query += " ORDER BY n.created_at DESC LIMIT ?"
+        params.append(limit)
+
+        rows = self._fetch_all(query, tuple(params))
+        return [dict(row) for row in rows]
+
+    def get_user_notification_count(self, user_id: str, unread_only: bool = True) -> int:
+        """
+        Get count of notifications for a user.
+
+        Args:
+            user_id: User identifier
+            unread_only: If True, only count unread notifications
+
+        Returns:
+            int: Number of notifications matching criteria.
+        """
+        query = """
+            SELECT COUNT(*)
+            FROM notifications n
+            JOIN user_notifications un ON un.notification_id = n.id
+            WHERE un.user_id = ?
+        """
+        params = [user_id]
+
+        if unread_only:
+            query += " AND un.is_read = 0"
+
+        query += " AND (n.expires_at IS NULL OR n.expires_at > datetime('now'))"
+
+        row = self._fetch_one(query, tuple(params))
+        return row[0] if row else 0
+
+    def cleanup_expired_user_notifications(self) -> int:
+        """
+        Delete user notifications for expired notifications.
+
+        Returns:
+            int: Number of deleted rows.
+        """
+        cursor = self._execute(
+            """
+            DELETE FROM user_notifications
+            WHERE notification_id IN (
+                SELECT id FROM notifications
+                WHERE expires_at <= datetime('now')
+            )
+        """
+        )
+        return cursor.rowcount if cursor else 0
+
+    def cleanup_user_notifications(self, user_id: str) -> int:
+        """
+        Delete all user notifications for a specific user.
+        Used when deactivating/removing a user.
+
+        Args:
+            user_id: User identifier
+
+        Returns:
+            int: Number of deleted rows.
+        """
+        cursor = self._execute("DELETE FROM user_notifications WHERE user_id = ?", (user_id,))
+        return cursor.rowcount if cursor else 0
+
+    def delete_notification(self, notification_id: int) -> bool:
+        """
+        Delete a notification and all associated user notification entries.
+        This ensures proper cascade deletion when notifications are removed.
+
+        Args:
+            notification_id: The notification ID to delete
+
+        Returns:
+            bool: True if deletion succeeded, False otherwise.
         """
         try:
-            posts = self.get_latest_posts(limit=1000)  # Get a large number of posts
-            posts_data = []
+            # The foreign key constraint with ON DELETE CASCADE should handle
+            # user_notifications cleanup automatically, but we'll be explicit
+            with self._transaction() as conn:
+                # First delete user notification entries
+                conn.execute("DELETE FROM user_notifications WHERE notification_id = ?", (notification_id,))
 
-            for post in posts:
-                post_dict = {
-                    "id": post.id,
-                    "title": post.title,
-                    "content": post.content,
-                    "publish_date": (post.publish_date.strftime("%Y-%m-%d %H:%M:%S") if post.publish_date else None),
-                    "category": post.category,
-                    "department": post.department,
-                    "location": post.location,
-                    "is_urgent": post.is_urgent,
-                    "has_image": post.has_image,
-                    "image_url": post.image_url,
-                    "likes": post.likes,
-                    "comments": post.comments,
-                    "link": post.link,
-                    "created_at": (post.created_at.strftime("%Y-%m-%d %H:%M:%S") if post.created_at else None),
-                    "updated_at": (post.updated_at.strftime("%Y-%m-%d %H:%M:%S") if post.updated_at else None),
-                }
-                posts_data.append(post_dict)
+                # Then delete the notification itself
+                cursor = conn.execute("DELETE FROM notifications WHERE id = ?", (notification_id,))
 
-            with open(file_path, "w", encoding="utf-8") as f:
-                json.dump(posts_data, f, ensure_ascii=False, indent=2)
-
-            return len(posts_data)
+                return cursor.rowcount > 0
 
         except Exception as e:
-            logger.error("Failed to export posts to JSON: %s", e)
-            raise DatabaseError(f"Export failed: {e}") from e
+            logger.error("Error deleting notification %s: %s", notification_id, e)
+            return False
+
+    def _migrate_notifications_schema(self) -> None:
+        """
+        Migrate from old notification schema to new user_notifications schema.
+        This is a one-time migration that handles existing data.
+        """
+        with self._transaction() as conn:
+            # Check if migration is needed by looking for the old is_read column
+            try:
+                conn.execute("SELECT is_read FROM notifications LIMIT 1")
+                # Old schema exists, need to migrate
+                logger.info("Migrating notification schema to user_notifications table")
+
+                # Get all existing notifications
+                old_notifications = conn.execute("SELECT id, is_read FROM notifications").fetchall()
+
+                # For each notification, if it was marked as read, we need to create user_notifications entries
+                # Since we don't have user context in the old schema, we'll assume global read state
+                # This is a limitation of the old schema - we can't recover per-user read state
+                for notif in old_notifications:
+                    if notif["is_read"]:
+                        # Get all active push subscriptions (as a proxy for active users)
+                        subscriptions = conn.execute(
+                            "SELECT DISTINCT user_key FROM push_subscriptions WHERE user_key IS NOT NULL"
+                        ).fetchall()
+                        for sub in subscriptions:
+                            if sub["user_key"]:
+                                conn.execute(
+                                    "INSERT OR IGNORE INTO user_notifications "
+                                    "(user_id, notification_id, is_read, read_at) "
+                                    "VALUES (?, ?, ?, ?)",
+                                    (
+                                        sub["user_key"],
+                                        notif["id"],
+                                        1,
+                                        datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
+                                    ),
+                                )
+
+                # Remove the old is_read column
+                # SQLite doesn't support DROP COLUMN, so we need to recreate the table
+                conn.execute("ALTER TABLE notifications RENAME TO notifications_old")
+
+                # Create new notifications table without is_read
+                conn.execute(
+                    """
+                    CREATE TABLE notifications (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        post_id TEXT,
+                        message TEXT NOT NULL,
+                        title TEXT NOT NULL,
+                        image_url TEXT,
+                        is_urgent INTEGER DEFAULT 0,
+                        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                        expires_at TEXT,
+                        FOREIGN KEY(post_id) REFERENCES posts(id)
+                    )
+                """
+                )
+
+                # Copy data without is_read column
+                conn.execute(
+                    """
+                    INSERT INTO notifications (
+                        id, post_id, message, title, image_url, is_urgent, created_at, expires_at
+                    )
+                    SELECT
+                        id, post_id, message, title, image_url, is_urgent, created_at, expires_at
+                    FROM notifications_old
+                    """
+                )
+
+                # Drop old table
+                conn.execute("DROP TABLE notifications_old")
+
+                # Recreate indexes
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_notifications_expires ON notifications(expires_at)")
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_notifications_created ON notifications(created_at)")
+
+                logger.info("Notification schema migration completed")
+
+            except sqlite3.OperationalError:
+                # is_read column doesn't exist, schema is already migrated
+                pass
+
+    def cleanup_user_data(self, user_id: str) -> Dict[str, int]:
+        """
+        Clean up all notification data for a user when they're deactivated/removed.
+
+        Args:
+            user_id: User identifier
+
+        Returns:
+            Dict[str, int]: Number of records cleaned up from each table
+        """
+        cleanup_counts = {}
+
+        # Clean up user notifications
+        cleanup_counts["user_notifications"] = self.cleanup_user_notifications(user_id)
+
+        # Clean up notification settings
+        try:
+            settings_deleted = self._execute(
+                "DELETE FROM notification_settings WHERE user_key = ?", (user_id,)
+            ).rowcount
+            cleanup_counts["notification_settings"] = settings_deleted
+        except (ValueError, TypeError, RuntimeError) as e:
+            logger.error("Error cleaning up notification settings for user %s: %s", user_id, e)
+            cleanup_counts["notification_settings"] = 0
+
+        # Clean up push subscriptions
+        try:
+            subs_deleted = self._execute("DELETE FROM push_subscriptions WHERE user_key = ?", (user_id,)).rowcount
+            cleanup_counts["push_subscriptions"] = subs_deleted
+        except (ValueError, TypeError, RuntimeError) as e:
+            logger.error("Error cleaning up push subscriptions for user %s: %s", user_id, e)
+            cleanup_counts["push_subscriptions"] = 0
+
+        # Clean up keyword associations
+        try:
+            keywords_deleted = self._execute(
+                "DELETE FROM notification_keywords WHERE user_key = ?", (user_id,)
+            ).rowcount
+            cleanup_counts["notification_keywords"] = keywords_deleted
+        except (ValueError, TypeError, RuntimeError) as e:
+            logger.error("Error cleaning up keywords for user %s: %s", user_id, e)
+            cleanup_counts["notification_keywords"] = 0
+
+        total_cleaned = sum(cleanup_counts.values())
+        if total_cleaned > 0:
+            logger.info("Cleaned up %d total records for user %s: %s", total_cleaned, user_id, cleanup_counts)
+
+        return cleanup_counts
 
     # Helper methods
     def _fetch_one(self, sql: str, params: tuple = ()) -> Optional[sqlite3.Row]:
-        """
-        Execute a query and return the first row.
-
-        Args:
-            sql: SQL SELECT query.
-            params: Query parameters.
-
-        Returns:
-            Optional[sqlite3.Row]: First result row or None.
-        """
-        with self._transaction() as conn:
-            cursor = conn.execute(sql, params)
-            return cursor.fetchone()
+        """Fetch a single row from the database."""
+        try:
+            with self._lock:
+                return self._conn.execute(sql, params).fetchone()
+        except sqlite3.Error as e:
+            logger.error("SQL fetch one error. Query: %s, Params: %s, Error: %s", sql, params, e)
+            raise DatabaseError(f"Fetch one failed for SQL: {sql} with params {params}: {e}") from e
 
     def _fetch_all(self, sql: str, params: tuple = ()) -> List[sqlite3.Row]:
-        """
-        Execute a query and return all rows.
-
-        Args:
-            sql: SQL SELECT query.
-            params: Query parameters.
-
-        Returns:
-            List[sqlite3.Row]: List of result rows.
-        """
-        with self._transaction() as conn:
-            cursor = conn.execute(sql, params)
-            return cursor.fetchall()
+        """Fetch all rows from the database."""
+        try:
+            with self._lock:
+                return self._conn.execute(sql, params).fetchall()
+        except sqlite3.Error as e:
+            logger.error("SQL fetch all error. Query: %s, Params: %s, Error: %s", sql, params, e)
+            raise DatabaseError(f"Fetch all failed for SQL: {sql} with params {params}: {e}") from e
 
     def _safe_execute(self, sql: str, params: tuple = ()) -> Any:
-        """
-        Safely execute a SQL statement, suppressing errors.
-
-        Args:
-            sql: SQL query or command.
-            params: Tuple of parameters.
-
-        Returns:
-            sqlite3.Cursor or False: Cursor if successful, else False.
-        """
+        """Execute SQL safely without transaction."""
         try:
-            return self._execute(sql, params)
-        except DatabaseError:
-            return False
+            with self._lock:
+                return self._conn.execute(sql, params)
+        except sqlite3.Error as e:
+            logger.error("Safe execute error. Query: %s, Params: %s, Error: %s", sql, params, e)
+            return None
 
     def _add_post_locations(
         self,

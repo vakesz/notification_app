@@ -69,7 +69,7 @@
     }
   }
 
-  async function registerServiceWorkerAndSubscribe() {
+  async function subscribeForPush() {
     if (!("serviceWorker" in navigator && "PushManager" in window)) {
       console.warn("Push messaging is not supported");
       showError("Push notifications are not supported in your browser.");
@@ -120,9 +120,15 @@
       }
       // POST subscription to backend with retry
       await retryOperation(async () => {
+        // Include user key in subscription if available
+        const subscriptionData = {
+          ...subscription.toJSON(),
+          user_key: window.currentUserKey || null  // This should be set by the backend when rendering the page
+        };
+
         const response = await fetch("/api/subscriptions", {
           method: "POST",
-          body: JSON.stringify(subscription),
+          body: JSON.stringify(subscriptionData),
           headers: {
             "Content-Type": "application/json",
             "X-CSRFToken": CSRF_TOKEN_PUSH,
@@ -156,7 +162,7 @@
           await subscription.pushManager.getSubscription();
         if (!currentSubscription) {
           console.log("Subscription expired, resubscribing...");
-          await registerServiceWorkerAndSubscribe();
+          await subscribeForPush();
         }
       } catch (error) {
         console.warn("Error checking subscription:", error);
@@ -185,7 +191,7 @@
     }, 5000);
   }
 
-  async function unregisterServiceWorkerAndUnsubscribe() {
+  async function unsubscribeFromPush() {
     try {
       const registrations = await navigator.serviceWorker.getRegistrations();
       for (const registration of registrations) {
@@ -223,19 +229,23 @@
     }
   }
 
+  // Expose functions globally for use by other scripts
+  window.subscribeForPush = subscribeForPush;
+  window.unsubscribeFromPush = unsubscribeFromPush;
+
   document.addEventListener("DOMContentLoaded", () => {
     if (Notification.permission === "granted") {
-      registerServiceWorkerAndSubscribe();
+      subscribeForPush();
     }
 
     const notifToggle = document.getElementById("notif-toggle");
     if (notifToggle) {
       notifToggle.addEventListener("change", async (event) => {
         if (event.target.checked) {
-          await registerServiceWorkerAndSubscribe();
+          await subscribeForPush();
         } else {
           console.log("User disabled notifications via toggle.");
-          await unregisterServiceWorkerAndUnsubscribe();
+          await unsubscribeFromPush();
         }
       });
     }

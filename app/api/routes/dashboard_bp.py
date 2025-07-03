@@ -2,9 +2,7 @@
 
 import io
 import logging
-import re
 from datetime import datetime, timedelta
-from pathlib import Path
 from typing import Any, Callable, Dict, Optional, Union
 
 import requests
@@ -61,8 +59,9 @@ def _render_dashboard_context(**overrides: Any) -> Dict[str, Any]:
     settings = current_app.notification_service.get_settings(key)
     available_locations = current_app.database_manager.get_available_locations()
     available_keywords = current_app.database_manager.get_all_keywords()
-    notifications = current_app.database_manager.get_notifications(limit=10)
-    summary = current_app.notification_service.get_notification_summary()
+    user_notifications = current_app.database_manager.get_user_notifications(key, limit=10)
+    unread_count = current_app.database_manager.get_user_notification_count(key, unread_only=True)
+    total_count = current_app.database_manager.get_user_notification_count(key, unread_only=False)
     posts = current_app.database_manager.get_latest_posts(limit=10)
 
     # Calculate derived values
@@ -74,8 +73,8 @@ def _render_dashboard_context(**overrides: Any) -> Dict[str, Any]:
         "settings": settings,
         "available_locations": available_locations,
         "available_keywords": available_keywords,
-        "notifications": notifications,
-        "notification_summary": summary,
+        "notifications": user_notifications,
+        "notification_summary": {"unread": unread_count, "total": total_count},
         "posts": posts,
         "new_posts_count": new_posts_count,
         "total_posts": total_posts,
@@ -83,20 +82,6 @@ def _render_dashboard_context(**overrides: Any) -> Dict[str, Any]:
     }
     context.update(overrides)
     return context
-
-
-def _safe_filename(name: str, suffix: str = ".json") -> str:
-    """Sanitize export filenames to prevent directory traversal.
-
-    Args:
-        name: Base filename to sanitize
-        suffix: File extension to append
-
-    Returns:
-        Safe filename with only allowed characters
-    """
-    sanitized = re.sub(r"[^\w.-]", "_", name)
-    return f"{sanitized}{suffix}" if not sanitized.endswith(suffix) else sanitized
 
 
 def _json_response(func: Callable, *args: Any, **kwargs: Any) -> Union[Response, tuple]:
@@ -168,35 +153,24 @@ def refresh_posts() -> Response:
     return redirect(url_for("dashboard_bp.dashboard"))
 
 
-@dashboard_bp.route("/export")
-@require_auth
-def export_posts() -> Response:
-    """Export posts to JSON file under exports/ directory."""
-    try:
-        key = _get_user_key().replace("@", "_")
-        filename = _safe_filename(f"posts_export_{key}")
-        exports_dir = Path(current_app.root_path) / "exports"
-        exports_dir.mkdir(exist_ok=True)
-        file_path = exports_dir / filename
-        count = current_app.database_manager.export_posts_to_json(str(file_path))
-        logger.info("Exported posts: %s (%d) | user=%s", filename, count, key)
-        flash(f"Exported {count} posts to {filename}", "success")
-    except (OSError, ValueError, RuntimeError) as e:
-        logger.error("Export failed: %s | user=%s", e, _get_user_key(), exc_info=True)
-        flash(f"Export failed: {e}", "error")
-    return redirect(url_for("dashboard_bp.dashboard"))
-
-
 @dashboard_bp.route("/api/notifications/mark-read", methods=["POST"])
 @require_auth
 def mark_notifications_read() -> Union[Response, tuple]:
-    """Mark all notifications read."""
+    """Mark all notifications as read for the authenticated user."""
 
     def action() -> Dict[str, Any]:
-        current_app.database_manager.mark_notifications_read()
-        summary = current_app.notification_service.get_notification_summary()
-        logger.info("Notifications marked read | user=%s", _get_user_key())
-        return {"success": True, "unread": summary.get("unread", 0)}
+        user_key = _get_user_key()
+        if not user_key:
+            raise ValueError("User key not found in session")
+
+        # Only mark notifications for the authenticated user
+        success = current_app.database_manager.mark_all_user_notifications_read(user_key)
+        if not success:
+            raise RuntimeError("Failed to mark notifications as read")
+
+        unread_count = current_app.database_manager.get_user_notification_count(user_key, unread_only=True)
+        logger.info("Notifications marked read | user=%s", user_key)
+        return {"success": True, "unread": unread_count}
 
     return _json_response(action)
 
@@ -204,12 +178,28 @@ def mark_notifications_read() -> Union[Response, tuple]:
 @dashboard_bp.route("/api/notifications/status")
 @require_auth
 def get_notification_status() -> Union[Response, tuple]:
-    """Fetch current notification summary."""
+    """Fetch current notification summary for the authenticated user."""
 
     def action() -> Dict[str, Any]:
-        summary = current_app.notification_service.get_notification_summary()
         user_key = _get_user_key()
-        summary["push_enabled"] = current_app.database_manager.has_push_subscription(user_key)
+        if not user_key:
+            raise ValueError("User key not found in session")
+
+        logger.debug("Fetching notification status for user: %s", user_key)
+        # Fetch user-specific notifications and counts
+        notifications = current_app.database_manager.get_user_notifications(user_key, limit=10, unread_only=False)
+        unread_count = current_app.database_manager.get_user_notification_count(user_key, unread_only=True)
+        total_count = current_app.database_manager.get_user_notification_count(user_key, unread_only=False)
+        push_enabled = current_app.database_manager.has_push_subscription(user_key)
+
+        summary = {
+            "unread": unread_count,
+            "total": total_count,
+            "push_enabled": push_enabled,
+            "unread_count": unread_count,
+            "latest_notifications": notifications,
+        }
+
         logger.info("Notification status fetched | user=%s", user_key)
         return summary
 

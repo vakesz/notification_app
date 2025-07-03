@@ -8,7 +8,7 @@ class NotificationSettings {
         this.csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
         this.settings = {};
         this.registration = null;
-        
+
         // Get all UI elements
         this.blogConnectionStatus = document.getElementById('blogConnectionStatus');
         this.requestPermissionBtn = document.getElementById('requestPermissionBtn');
@@ -33,7 +33,7 @@ class NotificationSettings {
 
         // Validate UI elements
         this.validateUIElements();
-        
+
         // Initialize immediately
         this.initialize();
     }
@@ -74,7 +74,7 @@ class NotificationSettings {
 
             // Verify push subscription status
             await this.checkPushStatus();
-            
+
             // Initialize event listeners
             this.initializeEventListeners();
 
@@ -158,21 +158,21 @@ class NotificationSettings {
                     'X-CSRFToken': this.csrfToken
                 }
             });
-            
+
             if (!response.ok) {
                 throw new Error(`Failed to load settings: ${response.status}`);
             }
-            
+
             const settings = await response.json();
-            
+
             // Validate settings
             if (!this.validateSettings(settings)) {
                 throw new Error('Invalid settings received from server');
             }
-            
+
             this.settings = settings;
             console.log('NotificationSettings: Loaded settings from server:', this.settings);
-            
+
             // Update UI based on loaded settings
             if (this.currentLocaleLabel) {
                 const lang = this.settings.language || 'en';
@@ -269,11 +269,11 @@ class NotificationSettings {
                 },
                 body: JSON.stringify(this.settings)
             });
-            
+
             if (!response.ok) {
                 throw new Error(`Failed to save settings: ${response.status}`);
             }
-            
+
             console.log('NotificationSettings: Settings saved successfully');
         } catch (error) {
             console.error('Error saving settings:', error);
@@ -304,9 +304,9 @@ class NotificationSettings {
             console.log('Requesting notification permission...');
             const permission = await Notification.requestPermission();
             console.log('Permission result:', permission);
-            
+
             this.updatePermissionStatus(permission);
-            
+
             if (permission === 'granted') {
                 if (this.requestPermissionBtn) {
                     this.requestPermissionBtn.classList.add('hidden');
@@ -426,27 +426,35 @@ class NotificationSettings {
                     // Disable notifications
                     this.settings.desktopNotifications = false;
                     this.settings.pushNotifications = false;
+
+                    // Unsubscribe from push notifications and unregister service worker
+                    if (typeof window.unsubscribeFromPush === 'function') {
+                        await window.unsubscribeFromPush();
+                    } else {
+                        console.warn('unsubscribeFromPush function not available');
+                    }
                 } else {
                     // Enable notifications
                     this.settings.desktopNotifications = true;
                     this.settings.pushNotifications = true;
-                    if (Notification.permission === 'default') {
+                    if (Notification.permission !== 'granted') {
                         await this.requestPermission();
+                    }
+
+                    // Re-subscribe to push notifications
+                    if (typeof window.subscribeForPush === 'function') {
+                        await window.subscribeForPush();
+                    } else {
+                        console.warn('subscribeForPush function not available');
                     }
                 }
                 this.saveSettings();
                 this.updateToggleButton(!isEnabled);
-                
+
                 // Immediately update test notification button state
                 if (this.testNotificationBtn) {
-                    this.testNotificationBtn.disabled = !this.settings.desktopNotifications && !this.settings.pushNotifications;
-                    if (this.testNotificationBtn.disabled) {
-                        this.testNotificationBtn.classList.add('opacity-50', 'cursor-not-allowed');
-                        this.testNotificationBtn.classList.remove('hover:bg-blue-100');
-                    } else {
-                        this.testNotificationBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-                        this.testNotificationBtn.classList.add('hover:bg-blue-100');
-                    }
+                    const newEnabled = this.settings.desktopNotifications || this.settings.pushNotifications;
+                    this.testNotificationBtn.disabled = !newEnabled;
                 }
             });
         }
@@ -485,6 +493,14 @@ class NotificationSettings {
         if (this.locationFilterEnabled) {
             this.locationFilterEnabled.addEventListener('click', () => {
                 const newEnabled = !this.settings.locationFilter.enabled;
+
+                // Check if enabling with no locations selected
+                if (newEnabled && this.settings.locationFilter.locations.length === 0) {
+                    // Updated warning message - empty filters mean "no filter"
+                    console.warn('Location filter enabled with no locations selected. Leaving filters blank will deliver all notifications.');
+                    this.showWarning('Location filter enabled with no locations selected. Leaving filters blank will deliver all notifications.');
+                }
+
                 this.settings.locationFilter.enabled = newEnabled;
                 this.updateLocationFilterButton(newEnabled);
                 this.updateLocationsUI();
@@ -496,6 +512,14 @@ class NotificationSettings {
         if (this.keywordFilterEnabled) {
             this.keywordFilterEnabled.addEventListener('click', () => {
                 const newEnabled = !this.settings.keywordFilter.enabled;
+
+                // Check if enabling with no keywords selected
+                if (newEnabled && this.settings.keywords.length === 0) {
+                    // Updated warning message - empty filters mean "no filter"
+                    console.warn('Keyword filter enabled with no keywords selected. Leaving filters blank will deliver all notifications.');
+                    this.showWarning('Keyword filter enabled with no keywords selected. Leaving filters blank will deliver all notifications.');
+                }
+
                 this.settings.keywordFilter.enabled = newEnabled;
                 this.updateKeywordFilterButton(newEnabled);
                 this.saveSettings();
@@ -508,12 +532,12 @@ class NotificationSettings {
             locationSearch.addEventListener('input', (event) => {
                 const searchTerm = event.target.value.toLowerCase();
                 const locationItems = this.locationFilterOptions.querySelectorAll('[name="locations"]');
-                
+
                 locationItems.forEach(item => {
                     const label = item.nextElementSibling;
                     const location = label.textContent.toLowerCase();
                     const parent = item.closest('div');
-                    
+
                     if (location.includes(searchTerm)) {
                         parent.style.display = '';
                     } else {
@@ -550,6 +574,12 @@ class NotificationSettings {
                     checkbox.checked = false;
                 });
                 this.settings.locationFilter.locations = [];
+
+                // Warn if location filter is still enabled
+                if (this.settings.locationFilter.enabled) {
+                    this.showWarning('Location filter is enabled but no locations are selected. Leaving filters blank will deliver all notifications.');
+                }
+
                 this.saveSettings();
             });
         }
@@ -606,6 +636,12 @@ class NotificationSettings {
                 const boxes = this.keywordsContainer.querySelectorAll('[name="keywords"]');
                 boxes.forEach(cb => cb.checked = false);
                 this.settings.keywords = [];
+
+                // Warn if keyword filter is still enabled
+                if (this.settings.keywordFilter.enabled) {
+                    this.showWarning('Keyword filter is enabled but no keywords are selected. Leaving filters blank will deliver all notifications.');
+                }
+
                 this.saveSettings();
             });
         }
@@ -621,6 +657,11 @@ class NotificationSettings {
                         }
                     } else {
                         this.settings.keywords = this.settings.keywords.filter(k => k !== kw);
+
+                        // Warn if this was the last keyword and filter is still enabled
+                        if (this.settings.keywords.length === 0 && this.settings.keywordFilter.enabled) {
+                            this.showWarning('Keyword filter is enabled but no keywords are selected. Leaving filters blank will deliver all notifications.');
+                        }
                     }
                     this.saveSettings();
                 }
@@ -632,16 +673,19 @@ class NotificationSettings {
             this.locationFilterOptions.addEventListener('change', (event) => {
                 if (event.target.type === 'checkbox') {
                     const location = event.target.value;
-                    const isChecked = event.target.checked;
-                    
-                    if (isChecked) {
+                    const checked = event.target.checked;
+                    if (checked) {
                         if (!this.settings.locationFilter.locations.includes(location)) {
                             this.settings.locationFilter.locations.push(location);
                         }
                     } else {
                         this.settings.locationFilter.locations = this.settings.locationFilter.locations.filter(l => l !== location);
+
+                        // Warn if this was the last location and filter is still enabled
+                        if (this.settings.locationFilter.locations.length === 0 && this.settings.locationFilter.enabled) {
+                            this.showWarning('Location filter is enabled but no locations are selected. Leaving filters blank will deliver all notifications.');
+                        }
                     }
-                    
                     this.saveSettings();
                 }
             });
@@ -650,7 +694,7 @@ class NotificationSettings {
 
     updateUI() {
         // Update all button states
-        
+
         // Update toggle button state
         if (this.toggleNotificationsBtn) {
             const isEnabled = this.settings.desktopNotifications || this.settings.pushNotifications;
@@ -667,14 +711,14 @@ class NotificationSettings {
         if (this.testNotificationBtn) {
             const isEnabled = this.settings.desktopNotifications || this.settings.pushNotifications;
             this.testNotificationBtn.disabled = !isEnabled;
-            
+
             // Create or update icon
             let icon = this.testNotificationBtn.querySelector('i');
             if (!icon) {
                 icon = document.createElement('i');
                 this.testNotificationBtn.prepend(icon);
             }
-            
+
             if (isEnabled) {
                 this.testNotificationBtn.className = 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors';
                 icon.className = 'fas fa-paper-plane mr-1';
@@ -735,14 +779,14 @@ class NotificationSettings {
 
     updateToggleButton(isEnabled) {
         if (!this.toggleNotificationsBtn) return;
-        
+
         // Create or update icon
         let icon = this.toggleNotificationsBtn.querySelector('i');
         if (!icon) {
             icon = document.createElement('i');
             this.toggleNotificationsBtn.prepend(icon);
         }
-        
+
         if (isEnabled) {
             this.toggleNotificationsBtn.className = 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors';
             icon.className = 'fas fa-check mr-1';
@@ -758,14 +802,14 @@ class NotificationSettings {
 
     updateLocationFilterButton(isEnabled) {
         if (!this.locationFilterEnabled) return;
-        
+
         // Create or update icon
         let icon = this.locationFilterEnabled.querySelector('i');
         if (!icon) {
             icon = document.createElement('i');
             this.locationFilterEnabled.prepend(icon);
         }
-        
+
         if (isEnabled) {
             this.locationFilterEnabled.className = 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors';
             icon.className = 'fas fa-check mr-1';
@@ -840,7 +884,7 @@ class NotificationSettings {
 
     updatePermissionButton(permission) {
         if (!this.requestPermissionBtn) return;
-        
+
         const permissionGranted = document.getElementById('permissionGranted');
         if (!permissionGranted) return;
 
@@ -888,18 +932,48 @@ class NotificationSettings {
         });
     }
 
+    showWarning(message) {
+        // Create warning toast if it doesn't exist
+        let toast = document.getElementById('warning-toast');
+        if (!toast) {
+            toast = document.createElement('div');
+            toast.id = 'warning-toast';
+            toast.className = 'fixed bottom-4 right-4 bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded max-w-sm z-50';
+            document.body.appendChild(toast);
+        }
+
+        // Show warning message
+        toast.innerHTML = `
+            <div class="flex items-center">
+                <i class="fas fa-exclamation-triangle mr-2"></i>
+                <span>${message}</span>
+            </div>
+        `;
+        toast.style.display = 'block';
+
+        // Hide after 8 seconds
+        setTimeout(() => {
+            toast.style.display = 'none';
+        }, 8000);
+    }
+
     showError(message) {
         // Create error toast if it doesn't exist
         let toast = document.getElementById('error-toast');
         if (!toast) {
             toast = document.createElement('div');
             toast.id = 'error-toast';
-            toast.className = 'fixed bottom-4 right-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded';
+            toast.className = 'fixed bottom-4 right-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded max-w-sm z-50';
             document.body.appendChild(toast);
         }
 
         // Show error message
-        toast.textContent = message;
+        toast.innerHTML = `
+            <div class="flex items-center">
+                <i class="fas fa-times-circle mr-2"></i>
+                <span>${message}</span>
+            </div>
+        `;
         toast.style.display = 'block';
 
         // Hide after 5 seconds
