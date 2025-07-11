@@ -49,6 +49,10 @@ def create_app(config_name: str = "default") -> Flask:
     flask_app = Flask(__name__)
     CSRFProtect(flask_app)
 
+    # TODO: Configure Flask-Limiter to use Redis storage backend instead of in-memory storage
+    # Should use RATE_LIMIT_STORAGE_URL from environment variables for production use
+    # Example: limiter = Limiter(..., storage_uri=flask_app.config.get("RATE_LIMIT_STORAGE_URL"))
+
     # Initialize rate limiter
     limiter = Limiter(app=flask_app, key_func=get_remote_address, default_limits=["200 per day", "50 per hour"])
 

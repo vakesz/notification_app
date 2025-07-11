@@ -31,6 +31,7 @@ dashboard_bp = Blueprint("dashboard_bp", __name__)
 logger = logging.getLogger(__name__)
 
 # Initialize rate limiter
+# TODO: Configure rate limiter to use Redis storage backend for production
 limiter = Limiter(key_func=get_remote_address)
 
 # --- Helper Functions ---
