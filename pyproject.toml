@@ -50,9 +50,7 @@ dev = [
     "pytest>=8.4.1",
     "pytest-cov>=6.0.0",
     "black>=25.1.0",
-    "flake8>=7.3.0",
-    "flake8-pyprojecttoml>=0.0.1",
-    "isort>=6.0.0",
+    "ruff>=0.1.0",
 ]
 
 
@@ -77,9 +75,21 @@ line-length = 120
 target-version = ["py310"]
 include = '\.pyi?$'
 
-[tool.flake8]
-max-line-length = 120
+[tool.ruff]
+line-length = 120
+target-version = "py310"
 
-[tool.isort]
-profile = "black"
-multi_line_output = 3
+[tool.ruff.lint]
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "B",  # flake8-bugbear
+    "C4", # flake8-comprehensions
+    "UP", # pyupgrade
+]
+ignore = []
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]

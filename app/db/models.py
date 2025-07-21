@@ -3,7 +3,7 @@
 import hashlib
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 
 @dataclass
@@ -43,16 +43,14 @@ class Post:
     def _generate_id(self) -> str:
         """Create a short, deterministic ID."""
         hash_input = (
-            f"{self.title}{self.content}"
-            f"{self.publish_date.isoformat()}{self.location}"
-            f"{self.department}{self.category}"
+            f"{self.title}{self.content}{self.publish_date.isoformat()}{self.location}{self.department}{self.category}"
         )
         digest = hashlib.sha256(hash_input.encode()).hexdigest()[:8]
         timestamp = int(self.publish_date.timestamp())
         return f"{digest}-{timestamp}"
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "Post":
+    def from_dict(cls, data: dict[str, Any]) -> "Post":
         """Create a Post instance from a dictionary."""
         # Handle datetime fields
         if isinstance(data.get("publish_date"), str):
@@ -124,7 +122,7 @@ class Notification:
         return f"notif-{hashlib.sha256(base.encode()).hexdigest()[:8]}"
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "Notification":
+    def from_dict(cls, data: dict[str, Any]) -> "Notification":
         """Create a Notification instance from a dictionary."""
         for key in ("created_at", "expires_at"):
             if isinstance(data.get(key), str):

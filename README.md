@@ -258,8 +258,7 @@ The project includes comprehensive development tools configured in `pyproject.to
 
 - **pytest**: Testing framework with coverage reporting
 - **black**: Automatic code formatting
-- **isort**: Import statement organization
-- **flake8**: Code style and quality linting
+- **ruff**: Fast Python linter and formatter (replaces flake8 and isort)
 
 All development dependencies are automatically installed with:
 
@@ -291,14 +290,11 @@ black app/
 # Check formatting
 black --check .
 
-# Sort imports
-isort app/
+# Lint and check code with ruff
+ruff check .
 
-# Check import sorting
-isort --check-only .
-
-# Lint code
-flake8 app
+# Format code with ruff
+ruff format .
 ```
 
 ### Continuous Integration
@@ -307,8 +303,7 @@ This project uses GitHub Actions for automated testing and code quality checks. 
 
 - **Multi-Python Testing**: Tests against Python 3.10, 3.11, and 3.12
 - **Code Formatting**: Validates code formatting with Black
-- **Import Sorting**: Ensures consistent import organization with isort
-- **Linting**: Code quality checks with Flake8
+- **Linting and Import Sorting**: Code quality checks and import organization with Ruff
 - **Test Coverage**: Automated test execution with coverage reporting
 
 The CI workflow runs on every push to main and on pull requests, ensuring code quality and compatibility across Python versions.

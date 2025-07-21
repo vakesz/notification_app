@@ -28,11 +28,10 @@ jobs:
       - name: Black (format check)
         run: black --check .
 
-      - name: isort (import sort)
-        run: isort --check-only .
-
-      - name: Flake8 (lint)
-        run: flake8 app
+      - name: Ruff (lint and format check)
+        run: |
+          ruff check .
+          ruff format --check .
 
       # Uncomment the following lines if there are any tests to run
       # - name: pytest (tests & coverage)
