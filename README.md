@@ -93,6 +93,13 @@ This Flask-based application automatically monitors blog content and delivers pe
    # BLOG_API_NTLM_PASSWORD=your-ntlm-password
    # BLOG_API_NTLM_DOMAIN=your-ntlm-domain
 
+   # For Cookie (session cookie on target blog domain):
+   # BLOG_API_AUTH_METHOD=cookie
+   # BLOG_API_COOKIE_NAME=your-cookie-name
+   # BLOG_API_COOKIE_VALUE=your-cookie-value
+   # BLOG_API_COOKIE_DOMAIN=your-blog-domain.com   # optional, defaults to BLOG_API_URL host
+   # BLOG_API_COOKIE_PATH=/                         # optional, defaults to '/'
+
    # Web Push Configuration
    PUSH_VAPID_PUBLIC_KEY=your-vapid-public-key
    PUSH_VAPID_PRIVATE_KEY=your-vapid-private-key
@@ -235,6 +242,7 @@ The application supports multiple authentication methods:
 - OAuth2 client credentials
 - Microsoft MSAL authentication
 - NTLM authentication
+- Cookie (session cookie supplied via environment)
 - No authentication (public APIs)
 
 ## Architecture Overview

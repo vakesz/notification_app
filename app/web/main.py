@@ -17,6 +17,7 @@ from app.core.blog_security import BlogAuthentication
 from app.core.config import config
 from app.core.security import AuthService
 from app.core.utils.session_utils import access_token_storage
+from app.core.utils.session_utils import require_auth
 from app.db.database import DatabaseManager
 from app.services.notification import NotificationService
 from app.services.parser import ContentParser
@@ -138,6 +139,7 @@ def create_app(config_name: str = "default") -> Flask:
         )
 
     @flask_app.route("/api/subscriptions", methods=["POST"])
+    @require_auth
     @limiter.limit("15 per minute")
     def manage_subscription() -> tuple[dict | str, int]:
         """Create or update a push subscription."""
@@ -147,6 +149,8 @@ def create_app(config_name: str = "default") -> Flask:
 
         user = session.get("user") or {}
         user_key = user.get("preferred_username") or user.get("name")
+        if not user_key:
+            return jsonify({"error": "Unauthorized"}), 401
 
         if flask_app.database_manager.push_subscription_exists(sub["endpoint"], user_key):
             flask_app.database_manager.update_subscription_last_used(sub["endpoint"])
@@ -162,6 +166,7 @@ def create_app(config_name: str = "default") -> Flask:
         return jsonify({"message": "Subscription successful"}), 201
 
     @flask_app.route("/api/subscriptions", methods=["DELETE"])
+    @require_auth
     @limiter.limit("15 per minute")
     def remove_subscription() -> tuple[dict, int]:
         """Remove a push subscription."""
@@ -171,7 +176,9 @@ def create_app(config_name: str = "default") -> Flask:
                 return jsonify({"error": "No subscription data"}), 400
             if not _validate_subscription(sub):
                 return jsonify({"error": "Invalid subscription object"}), 400
-            flask_app.database_manager.remove_push_subscription(sub)
+            user = session.get("user") or {}
+            user_key = user.get("preferred_username") or user.get("name")
+            flask_app.database_manager.remove_push_subscription(sub, user_key=user_key)
             flask_app.logger.info("Subscription removed: %s", sub.get("endpoint", "unknown"))
             return jsonify({"message": "Subscription removed"}), 200
         except (ValueError, TypeError, KeyError) as e:
@@ -179,6 +186,7 @@ def create_app(config_name: str = "default") -> Flask:
             return jsonify({"error": str(e)}), 500
 
     @flask_app.route("/notify", methods=["GET"])
+    @require_auth
     @limiter.limit("15 per minute")
     def notify() -> tuple[dict, int]:
         """Send a test notification to all push subscriptions."""

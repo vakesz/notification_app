@@ -18,7 +18,7 @@ class BlogAuthentication:
 
     The authentication method is chosen based on the ``BLOG_API_AUTH_METHOD``
     environment variable. Supported methods are ``oauth2``, ``msal``,
-    ``ntlm`` and ``none`` (default).
+    ``ntlm``, ``cookie`` and ``none`` (default).
     """
 
     def __init__(self) -> None:
@@ -32,6 +32,8 @@ class BlogAuthentication:
             return self._msal_token()
         if self.method == "ntlm":
             return self._ntlm_auth()
+        if self.method == "cookie":
+            return self._cookie_auth()
         logger.info("Blog authentication disabled or unknown method: %s", self.method)
         return None
 
@@ -84,3 +86,25 @@ class BlogAuthentication:
             logger.error("NTLM configuration incomplete")
             return None
         return HttpNtlmAuth(f"{domain}\\{user}", password)
+
+    def _cookie_auth(self) -> Optional[dict]:
+        """Return a cookie descriptor for requests session when configured.
+
+        Expected env vars:
+        - BLOG_API_COOKIE_NAME: Name of the session cookie (e.g., 'sessionid')
+        - BLOG_API_COOKIE_VALUE: Cookie value
+        - BLOG_API_COOKIE_DOMAIN: Optional cookie domain override
+        - BLOG_API_COOKIE_PATH: Optional cookie path (defaults to '/')
+        """
+        name = os.getenv("BLOG_API_COOKIE_NAME")
+        value = os.getenv("BLOG_API_COOKIE_VALUE")
+        if not name or not value:
+            logger.error("Cookie auth configuration incomplete: name/value required")
+            return None
+        domain = os.getenv("BLOG_API_COOKIE_DOMAIN")
+        path = os.getenv("BLOG_API_COOKIE_PATH", "/")
+        return {
+            "cookies": {name: value},
+            "domain": domain,
+            "path": path,
+        }

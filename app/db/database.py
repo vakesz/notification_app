@@ -750,7 +750,7 @@ class DatabaseManager:
                 query = """
                     SELECT endpoint, auth, p256dh, user_key, device_id
                     FROM push_subscriptions
-                    WHERE is_active = 1
+                    WHERE is_active = 1 AND user_key IS NOT NULL
                 """
                 rows = self._fetch_all(query, ())
             else:

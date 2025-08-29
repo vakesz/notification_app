@@ -143,7 +143,7 @@
       });
 
       // Set up subscription expiration handling
-      setupSubscriptionExpirationHandling(subscription);
+      setupSubscriptionExpirationHandling();
     } catch (error) {
       console.error("Service Worker or Subscription Error", error);
       showError(
@@ -152,14 +152,14 @@
     }
   }
 
-  function setupSubscriptionExpirationHandling(subscription) {
-    if (!subscription) return;
-
+  function setupSubscriptionExpirationHandling() {
     // Check subscription expiration every hour
     setInterval(async () => {
       try {
-        const currentSubscription =
-          await subscription.pushManager.getSubscription();
+        if (!('serviceWorker' in navigator)) return;
+        const registration = await navigator.serviceWorker.getRegistration();
+        if (!registration) return;
+        const currentSubscription = await registration.pushManager.getSubscription();
         if (!currentSubscription) {
           console.log("Subscription expired, resubscribing...");
           await subscribeForPush();

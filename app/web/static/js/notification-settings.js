@@ -468,6 +468,22 @@ class NotificationSettings {
                     return;
                 }
 
+                // Show an immediate local notification for real-time feedback
+                try {
+                    if ('Notification' in window && Notification.permission === 'granted' && this.settings.desktopNotifications) {
+                        const n = new Notification('🧪 Test Notification', {
+                            body: 'This is a test notification to verify your settings are working correctly.',
+                            icon: '/static/img/notification/icon.png',
+                            tag: 'test-notification',
+                            requireInteraction: false
+                        });
+                        setTimeout(() => { try { n.close(); } catch (_) {} }, 8000);
+                    }
+                } catch (e) {
+                    console.warn('Unable to show immediate test notification:', e);
+                }
+
+                // Also trigger server-side push test to verify push path
                 try {
                     const response = await fetch('/api/test-notification', {
                         method: 'POST',
@@ -480,7 +496,7 @@ class NotificationSettings {
                     if (!response.ok) {
                         throw new Error(`Failed to trigger notification: ${response.status}`);
                     }
-                    console.log('Test notification triggered');
+                    console.log('Test push notification triggered');
                 } catch (error) {
                     console.error('Error sending test notification:', error);
                     this.showError('Failed to send test notification');

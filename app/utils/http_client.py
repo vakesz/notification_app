@@ -2,6 +2,7 @@
 
 import logging
 from typing import Any, Callable, Dict, Optional
+from urllib.parse import urlparse
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -87,6 +88,25 @@ class HTTPClient:
             self.session.auth = creds
         elif isinstance(creds, str):
             headers["Authorization"] = f"Bearer {creds}"
+            self.session.auth = None
+        elif isinstance(creds, dict):
+            # Support cookie and header based auth via dict
+            # Optional custom headers
+            custom_headers = creds.get("headers")
+            if isinstance(custom_headers, dict):
+                headers.update({str(k): str(v) for k, v in custom_headers.items()})
+
+            # Optional cookie injection
+            cookie_map = creds.get("cookies")
+            if isinstance(cookie_map, dict) and cookie_map:
+                parsed = urlparse(self.base_url)
+                domain = creds.get("domain") or parsed.hostname
+                path = creds.get("path", "/")
+                for cname, cval in cookie_map.items():
+                    try:
+                        self.session.cookies.set(cname, cval, domain=domain, path=path)
+                    except Exception as exc:
+                        logger.warning("Failed to set cookie %s for domain %s: %s", cname, domain, exc)
             self.session.auth = None
         else:
             logger.warning("Unsupported blog auth credentials: %s", type(creds))
