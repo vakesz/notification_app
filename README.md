@@ -7,7 +7,7 @@
 [![GitHub Pages](https://github.com/vakesz/notification_app/actions/workflows/static.yml/badge.svg)](https://vakesz.github.io/notification_app/)
 [![Python Version](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![Linting: Ruff](https://img.shields.io/badge/linting-ruff-46a2f1.svg)](https://github.com/astral-sh/ruff)
 
 A real-time web application for monitoring blog posts with intelligent notifications, Azure AD authentication, and web push support.
 
@@ -294,12 +294,10 @@ The application implements a sophisticated notification filtering system that en
 
 ### Development Dependencies
 
-The project includes comprehensive development tools configured in `pyproject.toml`:
+The project includes development tools configured in `pyproject.toml`:
 
 - **pytest**: Testing framework with coverage reporting
-- **black**: Automatic code formatting
-- **isort**: Import statement organization
-- **flake8**: Code style and quality linting
+- **ruff**: Linting, import sorting, and code formatting
 
 All development dependencies are automatically installed with:
 
@@ -325,20 +323,20 @@ pytest --cov=app --maxfail=1 --disable-warnings -q
 The project uses automated code quality tools that are also run in CI:
 
 ```bash
-# Format code
-black app/
+# Format code (Black-compatible)
+ruff format app/
 
-# Check formatting
-black --check .
+# Check formatting only
+ruff format --check .
 
-# Sort imports
-isort app/
+# Lint and sort imports (includes isort via rule I)
+ruff check .
 
-# Check import sorting
-isort --check-only .
+# Autofix lint and import issues
+ruff check --fix .
 
-# Lint code
-flake8 app
+# Only sort imports (if needed)
+ruff check --select I --fix .
 ```
 
 ### Continuous Integration
@@ -346,9 +344,9 @@ flake8 app
 This project uses GitHub Actions for automated testing and code quality checks. The CI pipeline:
 
 - **Multi-Python Testing**: Tests against Python 3.10, 3.11, and 3.12
-- **Code Formatting**: Validates code formatting with Black
-- **Import Sorting**: Ensures consistent import organization with isort
-- **Linting**: Code quality checks with Flake8
+- **Code Formatting**: Validates code formatting with Ruff
+- **Import Sorting**: Ensures consistent import organization with Ruff (isort rules)
+- **Linting**: Code quality checks with Ruff
 - **Test Coverage**: Automated test execution with coverage reporting
 
 The CI workflow runs on every push to main and on pull requests, ensuring code quality and compatibility across Python versions.

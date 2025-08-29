@@ -25,14 +25,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e .[dev]
 
-      - name: Black (format check)
-        run: black --check .
+      - name: Ruff Format (check)
+        run: ruff format --check .
 
-      - name: isort (import sort)
-        run: isort --check-only .
-
-      - name: Flake8 (lint)
-        run: flake8 app
+      - name: Ruff Lint
+        run: ruff check .
 
       # Uncomment the following lines if there are any tests to run
       # - name: pytest (tests & coverage)

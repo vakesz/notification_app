@@ -49,10 +49,7 @@ dev = [
     "pre-commit>=3.0.0",
     "pytest>=8.4.1",
     "pytest-cov>=6.0.0",
-    "black>=25.1.0",
-    "flake8>=7.3.0",
-    "flake8-pyprojecttoml>=0.0.1",
-    "isort>=6.0.0",
+    "ruff>=0.6.8",
 ]
 
 
@@ -72,14 +69,37 @@ app = ["web/static/**/*", "web/templates/**/*"]
 [tool.setuptools.dynamic]
 version = { attr = "app.__version__" }
 
-[tool.black]
+[tool.ruff]
 line-length = 120
-target-version = ["py310"]
-include = '\.pyi?$'
+target-version = "py310"
 
-[tool.flake8]
-max-line-length = 120
+[tool.ruff.flake8-quotes]
+docstring-quotes = "double"
+inline-quotes = "double"
 
-[tool.isort]
-profile = "black"
-multi_line_output = 3
+[tool.ruff.lint]
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "B",  # flake8-bugbear
+    "C4", # flake8-comprehensions
+    "UP", # pyupgrade
+]
+ignore = []
+
+[tool.ruff.mccabe]
+max-complexity = 10
+
+[tool.ruff.pydocstyle]
+convention = "google"
+
+[tool.ruff.isort]
+combine-as-imports = true
+force-sort-within-sections = true
+known-first-party = ["app"]
+
+[tool.ruff.format]
+quote-style = "preserve"
+indent-style = "space"

@@ -1,12 +1,12 @@
 """Database connection and operations."""
 
+from contextlib import contextmanager
+from datetime import datetime
 import json
 import logging
 import sqlite3
 import threading
-from contextlib import contextmanager
-from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from app.core.config import Config
 from app.db.models import Notification, Post
@@ -305,12 +305,12 @@ class DatabaseManager:
 
             return True
 
-    def add_posts_bulk(self, posts: List[Post]) -> List[Post]:
+    def add_posts_bulk(self, posts: list[Post]) -> list[Post]:
         """
         Insert or update multiple posts in one transaction.
         Returns the list of posts that were actually inserted or updated.
         """
-        updated: List[Post] = []
+        updated: list[Post] = []
         with self._transaction() as conn:
             for post in posts:
                 existing = self.get_post(post.id)
@@ -328,7 +328,7 @@ class DatabaseManager:
 
         return updated
 
-    def get_post(self, post_id: str) -> Optional[Post]:
+    def get_post(self, post_id: str) -> Post | None:
         """
         Retrieve a post by its unique ID.
 
@@ -344,7 +344,7 @@ class DatabaseManager:
             return None
         return Post.from_database_row(dict(row))
 
-    def get_latest_posts(self, limit: int = 10) -> List[Post]:
+    def get_latest_posts(self, limit: int = 10) -> list[Post]:
         """
         Fetch the most recent posts ordered by publish date.
 
@@ -357,7 +357,7 @@ class DatabaseManager:
         rows = self._fetch_all("SELECT * FROM posts ORDER BY publish_date DESC LIMIT ?", (limit,))
         return [Post.from_database_row(dict(r)) for r in rows]
 
-    def add_notification(self, notif: Notification) -> Optional[int]:
+    def add_notification(self, notif: Notification) -> int | None:
         """
         Create a new notification entry.
 
@@ -384,7 +384,7 @@ class DatabaseManager:
         cursor = self._execute(sql, params)
         return cursor.lastrowid if cursor else None
 
-    def get_notifications(self, user_id: str, limit: int = 10, include_expired: bool = False) -> List[Dict[str, Any]]:
+    def get_notifications(self, user_id: str, limit: int = 10, include_expired: bool = False) -> list[dict[str, Any]]:
         """
         Retrieve recent notifications for a specific user.
 
@@ -421,7 +421,7 @@ class DatabaseManager:
         rows = self._fetch_all(query, tuple(params))
         return [dict(row) for row in rows]
 
-    def mark_notifications_read(self, user_id: str, notification_ids: List[int]) -> bool:
+    def mark_notifications_read(self, user_id: str, notification_ids: list[int]) -> bool:
         """
         Mark specific notifications as read for a user. Enforces user scoping.
 
@@ -455,8 +455,8 @@ class DatabaseManager:
 
         # Check if user is trying to access notifications they don't own
         unauthorized_ids = set(notification_ids) - set(owned_ids)
-                "403 Forbidden: Cannot access one or more requested notifications."
-            )
+        if unauthorized_ids:
+            raise DatabaseError("403 Forbidden: Cannot access one or more requested notifications.")
 
         # Mark notifications as read only for this user
         update_query = f"""
@@ -480,7 +480,7 @@ class DatabaseManager:
         return cursor.rowcount if cursor else 0
 
     def add_push_subscription(
-        self, info: Dict[str, Any], user_key: Optional[str] = None, device_id: Optional[str] = None
+        self, info: dict[str, Any], user_key: str | None = None, device_id: str | None = None
     ) -> bool:
         """
         Insert or update a push subscription record.
@@ -518,7 +518,7 @@ class DatabaseManager:
             )
         )
 
-    def push_subscription_exists(self, endpoint: str, user_key: Optional[str] = None) -> bool:
+    def push_subscription_exists(self, endpoint: str, user_key: str | None = None) -> bool:
         """Check if a push subscription already exists for the given endpoint and user."""
         params = [endpoint]
         query = "SELECT 1 FROM push_subscriptions WHERE endpoint = ?"
@@ -529,7 +529,7 @@ class DatabaseManager:
         return row is not None
 
     def remove_push_subscription(
-        self, info: Dict[str, Any], user_key: Optional[str] = None, device_id: Optional[str] = None
+        self, info: dict[str, Any], user_key: str | None = None, device_id: str | None = None
     ) -> bool:
         """
         Remove a push subscription by its endpoint and device_id for multi-device support.
@@ -590,7 +590,7 @@ class DatabaseManager:
         )
         return row is not None
 
-    def get_notification_settings(self, user_key: str) -> Optional[str]:
+    def get_notification_settings(self, user_key: str) -> str | None:
         """
         Fetch notification settings JSON for a user.
 
@@ -603,7 +603,7 @@ class DatabaseManager:
         row = self._fetch_one("SELECT settings FROM notification_settings WHERE user_key = ?", (user_key,))
         return row["settings"] if row else None
 
-    def get_all_notification_settings(self) -> Dict[str, str]:
+    def get_all_notification_settings(self) -> dict[str, str]:
         """
         Retrieve all users' notification settings.
 
@@ -613,7 +613,7 @@ class DatabaseManager:
         rows = self._fetch_all("SELECT user_key, settings FROM notification_settings")
         return {r["user_key"]: r["settings"] for r in rows}
 
-    def update_notification_settings(self, user_key: str, settings: Dict[str, Any]) -> bool:
+    def update_notification_settings(self, user_key: str, settings: dict[str, Any]) -> bool:
         """
         Upsert notification settings for a user.
 
@@ -638,7 +638,7 @@ class DatabaseManager:
             )
         )
 
-    def update_user_keywords(self, user_key: str, keywords: List[str]) -> None:
+    def update_user_keywords(self, user_key: str, keywords: list[str]) -> None:
         """Replace user's keywords list."""
         with self._transaction() as conn:
             conn.execute(
@@ -655,7 +655,7 @@ class DatabaseManager:
                     (kw,),
                 )
 
-    def get_user_keywords(self, user_key: str) -> List[str]:
+    def get_user_keywords(self, user_key: str) -> list[str]:
         """Retrieve keywords associated with a user."""
         rows = self._fetch_all(
             "SELECT keyword FROM notification_keywords WHERE user_key = ?",
@@ -663,7 +663,7 @@ class DatabaseManager:
         )
         return [r["keyword"] for r in rows]
 
-    def add_global_keywords(self, keywords: List[str]) -> None:
+    def add_global_keywords(self, keywords: list[str]) -> None:
         """Add global keywords to the database."""
         if not keywords:
             return
@@ -671,12 +671,12 @@ class DatabaseManager:
             for kw in keywords:
                 conn.execute("INSERT OR IGNORE INTO keywords (keyword) VALUES (?)", (kw,))
 
-    def get_all_keywords(self) -> List[str]:
+    def get_all_keywords(self) -> list[str]:
         """List all distinct keywords in the database."""
         rows = self._fetch_all("SELECT keyword FROM keywords ORDER BY keyword")
         return [r["keyword"] for r in rows]
 
-    def get_available_locations(self) -> List[str]:
+    def get_available_locations(self) -> list[str]:
         """
         List distinct non-empty locations from posts.
 
@@ -699,7 +699,7 @@ class DatabaseManager:
             )
         )
 
-    def get_token(self, session_id: str) -> Optional[str]:
+    def get_token(self, session_id: str) -> str | None:
         """Retrieve the access token for a session ID."""
         row = self._fetch_one("SELECT token FROM auth_tokens WHERE session_id = ?", (session_id,))
         if row:
@@ -730,7 +730,7 @@ class DatabaseManager:
         )
         return row["cnt"] if row else 0
 
-    def get_push_subscriptions_for_users(self, user_keys: List[str], urgent: bool = False) -> List[Dict[str, Any]]:
+    def get_push_subscriptions_for_users(self, user_keys: list[str], urgent: bool = False) -> list[dict[str, Any]]:
         """
         Get push subscriptions for specific users.
 
@@ -790,7 +790,7 @@ class DatabaseManager:
         )
         return bool(self._execute(sql, (user_id, notification_id)))
 
-    def add_user_notifications_bulk(self, notification_id: int, user_ids: List[str]) -> bool:
+    def add_user_notifications_bulk(self, notification_id: int, user_ids: list[str]) -> bool:
         """
         Create user notification entries for multiple users for a single notification.
 
@@ -848,7 +848,7 @@ class DatabaseManager:
         cursor = self._execute(sql, (user_id,))
         return cursor.rowcount > 0 if cursor else False
 
-    def get_user_notifications(self, user_id: str, limit: int = 10, unread_only: bool = False) -> List[Dict[str, Any]]:
+    def get_user_notifications(self, user_id: str, limit: int = 10, unread_only: bool = False) -> list[dict[str, Any]]:
         """
         Get notifications for a specific user with read status.
 
@@ -1048,7 +1048,7 @@ class DatabaseManager:
                 # is_read column doesn't exist, schema is already migrated
                 pass
 
-    def cleanup_user_data(self, user_id: str) -> Dict[str, int]:
+    def cleanup_user_data(self, user_id: str) -> dict[str, int]:
         """
         Clean up all notification data for a user when they're deactivated/removed.
 
@@ -1098,7 +1098,7 @@ class DatabaseManager:
         return cleanup_counts
 
     # Helper methods
-    def _fetch_one(self, sql: str, params: tuple = ()) -> Optional[sqlite3.Row]:
+    def _fetch_one(self, sql: str, params: tuple = ()) -> sqlite3.Row | None:
         """Fetch a single row from the database."""
         try:
             with self._lock:
@@ -1107,7 +1107,7 @@ class DatabaseManager:
             logger.error("SQL fetch one error. Query: %s, Params: %s, Error: %s", sql, params, e)
             raise DatabaseError(f"Fetch one failed for SQL: {sql} with params {params}: {e}") from e
 
-    def _fetch_all(self, sql: str, params: tuple = ()) -> List[sqlite3.Row]:
+    def _fetch_all(self, sql: str, params: tuple = ()) -> list[sqlite3.Row]:
         """Fetch all rows from the database."""
         try:
             with self._lock:
@@ -1128,8 +1128,8 @@ class DatabaseManager:
     def _add_post_locations(
         self,
         post_id: str,
-        locations: List[str],
-        conn: Optional[sqlite3.Connection] = None,
+        locations: list[str],
+        conn: sqlite3.Connection | None = None,
     ) -> None:
         """
         Insert mappings between a post and one or more locations.

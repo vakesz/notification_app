@@ -1,21 +1,10 @@
 repos:
-  - repo: https://github.com/psf/black
-    rev: 23.12.1
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.6.8
     hooks:
-      - id: black
-
-  - repo: https://github.com/PyCQA/isort
-    rev: 5.12.0
-    hooks:
-      - id: isort
-
-  - repo: https://github.com/PyCQA/flake8
-    rev: 6.1.0
-    hooks:
-      - id: flake8
-        additional_dependencies:
-          - flake8-bugbear
-          - flake8-pyprojecttoml
+      - id: ruff
+        args: ["--fix"]
+      - id: ruff-format
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.4.0
