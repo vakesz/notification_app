@@ -95,6 +95,9 @@ This Flask-based application automatically monitors blog content and delivers pe
 
    # For Cookie (session cookie on target blog domain):
    # BLOG_API_AUTH_METHOD=cookie
+   # Option A: Multiple cookies (recommended when the site sets more than one)
+   # BLOG_API_COOKIES=name1=value1; name2=value2
+   # Option B: Single cookie (fallback)
    # BLOG_API_COOKIE_NAME=your-cookie-name
    # BLOG_API_COOKIE_VALUE=your-cookie-value
    # BLOG_API_COOKIE_DOMAIN=your-blog-domain.com   # optional, defaults to BLOG_API_URL host
