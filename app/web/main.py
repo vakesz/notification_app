@@ -16,8 +16,7 @@ from app.api.routes.dashboard_bp import limiter as dashboard_limiter
 from app.core.blog_security import BlogAuthentication
 from app.core.config import config
 from app.core.security import AuthService
-from app.core.utils.session_utils import access_token_storage
-from app.core.utils.session_utils import require_auth
+from app.core.utils.session_utils import access_token_storage, require_auth
 from app.db.database import DatabaseManager
 from app.services.notification import NotificationService
 from app.services.parser import ContentParser
