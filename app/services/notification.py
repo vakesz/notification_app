@@ -223,16 +223,11 @@ class NotificationService:
                 if target_users is None:
                     # URGENT path: get all users with push subscriptions as proxy for all users
                     all_subscriptions = self.db.get_push_subscriptions_for_users([], urgent=True)
-                    all_user_keys = [sub.get("user_key") for sub in all_subscriptions if sub.get("user_key")]
-                    unique_user_keys = list(set(all_user_keys))
-
-                    # Also include users from notification settings who might not have push subscriptions
                     all_settings = self.db.get_all_notification_settings()
-                    settings_user_keys = list(all_settings.keys())
-
-                    # Combine both sets to ensure we don't miss any users
-                    all_user_keys_combined = list(set(unique_user_keys + settings_user_keys))
-
+                    all_user_keys_combined = list(
+                        set(sub.get("user_key") for sub in all_subscriptions if sub.get("user_key"))
+                        | set(all_settings.keys())
+                    )
                     if all_user_keys_combined:
                         self.db.add_user_notifications_bulk(notification_id, all_user_keys_combined)
                     else:
