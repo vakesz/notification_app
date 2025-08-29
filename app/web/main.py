@@ -47,6 +47,18 @@ def create_app(config_name: str = "default") -> Flask:
     setup_logging()
 
     flask_app = Flask(__name__)
+
+    # Secure session cookie configuration
+    flask_app.config.update(
+        SESSION_COOKIE_SECURE=True,
+        SESSION_COOKIE_HTTPONLY=True,
+        # Use Lax for OAuth redirect compatibility; Strict can break callback cookies
+        SESSION_COOKIE_SAMESITE="Lax",
+        REMEMBER_COOKIE_SECURE=True,
+        REMEMBER_COOKIE_HTTPONLY=True,
+        REMEMBER_COOKIE_SAMESITE="Lax",
+    )
+
     CSRFProtect(flask_app)
 
     # TODO: Configure Flask-Limiter to use Redis storage backend instead of in-memory storage
@@ -114,6 +126,34 @@ def create_app(config_name: str = "default") -> Flask:
     # Register blueprints
     flask_app.register_blueprint(auth_bp)
     flask_app.register_blueprint(dashboard_bp)
+
+    # Security headers
+    @flask_app.after_request
+    def add_security_headers(response):
+        # Baseline headers
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("X-Frame-Options", "DENY")
+        response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+
+        # Content Security Policy (allow required CDNs used by templates)
+        csp = (
+            "default-src 'self'; "
+            "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
+            "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
+            "img-src 'self' data: https:; "
+            "font-src 'self' https://cdnjs.cloudflare.com; "
+            "connect-src 'self'; "
+            "worker-src 'self'; "
+            "object-src 'none'; "
+            "base-uri 'self'; "
+            "frame-ancestors 'none'"
+        )
+        response.headers.setdefault("Content-Security-Policy", csp)
+
+        # HSTS only under production/HTTPS contexts
+        if os.getenv("FLASK_ENV", "").lower() == "production":
+            response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload")
+        return response
 
     # CLI commands
     @flask_app.cli.command("start-polling")

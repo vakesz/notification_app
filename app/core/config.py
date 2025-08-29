@@ -84,6 +84,7 @@ class Config:
             "BLOG_API_URL",
             "PUSH_VAPID_PUBLIC_KEY",
             "PUSH_VAPID_PRIVATE_KEY",
+            "TOKEN_ENCRYPTION_KEY",
         ]
         missing = [var for var in required_vars if not getattr(cls, var)]
         if missing:

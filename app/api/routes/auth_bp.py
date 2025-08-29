@@ -77,7 +77,7 @@ def login():
     session.pop("state", None)
     session["state"] = secrets.token_urlsafe(32)
     auth_url = current_app.auth_service.get_authorization_url(session["state"])
-    logger.info("Redirecting to Microsoft login: %s...", auth_url[:100])
+    logger.debug("Redirecting to Microsoft login")
     return redirect(auth_url)
 
 

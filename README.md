@@ -108,6 +108,10 @@ This Flask-based application automatically monitors blog content and delivers pe
    PUSH_VAPID_PRIVATE_KEY=your-vapid-private-key
    PUSH_CONTACT_EMAIL=your-contact-email@example.com
 
+   # Token Encryption (required)
+   # Generate with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+   TOKEN_ENCRYPTION_KEY=base64-urlsafe-32-byte-fernet-key
+
    # Application Settings
    APP_NAME=Blog Notifications Parser
    APP_DATABASE_PATH=db/posts.db
@@ -150,6 +154,7 @@ docker run -d \
   -e PUSH_VAPID_PUBLIC_KEY=your-vapid-public-key \
   -e PUSH_VAPID_PRIVATE_KEY=your-vapid-private-key \
   -e PUSH_CONTACT_EMAIL=your-contact-email@example.com \
+  -e TOKEN_ENCRYPTION_KEY=your-fernet-key \
   -v notification-db:/app/db \
   ghcr.io/vakesz/notification_app:latest
 ```
@@ -173,6 +178,7 @@ docker run -d \
          - PUSH_VAPID_PUBLIC_KEY=your-vapid-public-key
          - PUSH_VAPID_PRIVATE_KEY=your-vapid-private-key
          - PUSH_CONTACT_EMAIL=your-contact-email@example.com
+         - TOKEN_ENCRYPTION_KEY=your-fernet-key
        volumes:
          - notification-db:/app/db
    volumes:
