@@ -93,10 +93,24 @@ This Flask-based application automatically monitors blog content and delivers pe
    # BLOG_API_NTLM_PASSWORD=your-ntlm-password
    # BLOG_API_NTLM_DOMAIN=your-ntlm-domain
 
+   # For Cookie (session cookie on target blog domain):
+   # BLOG_API_AUTH_METHOD=cookie
+   # Option A: Multiple cookies (recommended when the site sets more than one)
+   # BLOG_API_COOKIES=name1=value1; name2=value2
+   # Option B: Single cookie (fallback)
+   # BLOG_API_COOKIE_NAME=your-cookie-name
+   # BLOG_API_COOKIE_VALUE=your-cookie-value
+   # BLOG_API_COOKIE_DOMAIN=your-blog-domain.com   # optional, defaults to BLOG_API_URL host
+   # BLOG_API_COOKIE_PATH=/                         # optional, defaults to '/'
+
    # Web Push Configuration
    PUSH_VAPID_PUBLIC_KEY=your-vapid-public-key
    PUSH_VAPID_PRIVATE_KEY=your-vapid-private-key
    PUSH_CONTACT_EMAIL=your-contact-email@example.com
+
+   # Token Encryption (required)
+   # Generate with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+   TOKEN_ENCRYPTION_KEY=base64-urlsafe-32-byte-fernet-key
 
    # Application Settings
    APP_NAME=Blog Notifications Parser
@@ -140,6 +154,7 @@ docker run -d \
   -e PUSH_VAPID_PUBLIC_KEY=your-vapid-public-key \
   -e PUSH_VAPID_PRIVATE_KEY=your-vapid-private-key \
   -e PUSH_CONTACT_EMAIL=your-contact-email@example.com \
+  -e TOKEN_ENCRYPTION_KEY=your-fernet-key \
   -v notification-db:/app/db \
   ghcr.io/vakesz/notification_app:latest
 ```
@@ -163,6 +178,7 @@ docker run -d \
          - PUSH_VAPID_PUBLIC_KEY=your-vapid-public-key
          - PUSH_VAPID_PRIVATE_KEY=your-vapid-private-key
          - PUSH_CONTACT_EMAIL=your-contact-email@example.com
+         - TOKEN_ENCRYPTION_KEY=your-fernet-key
        volumes:
          - notification-db:/app/db
    volumes:
@@ -214,9 +230,19 @@ The application provides several API endpoints:
 Users can customize their notification preferences through the dashboard:
 
 - **Language**: Choose from English, Hungarian, or Swedish
-- **Location Filter**: Filter notifications by specific locations
-- **Keyword Filter**: Filter notifications by custom keywords
-- **Push Notifications**: Enable/disable web push notifications
+- **Location Filter**: Filter notifications by specific locations (only receive notifications for selected locations)
+- **Keyword Filter**: Filter notifications by custom keywords (only receive notifications containing specified keywords)
+- **Push Notifications**: Enable/disable web push notifications (respects user opt-out preferences)
+
+**Intelligent Notification Filtering:**
+
+The application implements intelligent filtering to ensure users only receive relevant notifications:
+
+- **Location-based Filtering**: Users can select specific locations and will only receive notifications for posts from those locations
+- **Keyword-based Filtering**: Users can define custom keywords and will only receive notifications for posts containing those keywords
+- **Push Opt-out**: Users can disable push notifications while keeping other notification types active
+- **Targeted Delivery**: Push notifications are only sent to users whose filters match the post content, respecting individual preferences
+- **Per-User Read State**: Each user has their own read/unread status for notifications, allowing independent tracking
 
 **Blog API Authentication:**
 
@@ -225,6 +251,7 @@ The application supports multiple authentication methods:
 - OAuth2 client credentials
 - Microsoft MSAL authentication
 - NTLM authentication
+- Cookie (session cookie supplied via environment)
 - No authentication (public APIs)
 
 ## Architecture Overview
@@ -246,9 +273,22 @@ The application supports multiple authentication methods:
 
 - **AuthService**: Handles Azure AD authentication and token management
 - **PollingService**: Monitors blog APIs for new content
-- **NotificationService**: Manages user notifications and web push
-- **DatabaseManager**: Handles all database operations
+- **NotificationService**: Manages user notifications and web push with intelligent filtering
+- **DatabaseManager**: Handles all database operations including user-targeted push subscriptions
 - **ContentParser**: Parses HTML content from blog APIs
+
+### Notification Filtering System
+
+The application implements a sophisticated notification filtering system that ensures users only receive relevant content:
+
+1. **Two-Stage Filtering**:
+   - Location-based filtering: Users can specify which locations they're interested in
+   - Keyword-based filtering: Users can define keywords that must be present in posts
+
+2. **Targeted Push Delivery**:
+   - Push notifications are only sent to users whose filters match the post content
+   - The system queries for push subscriptions of matched users only, not all users
+   - Individual push notification preferences are respected (users can opt-out of push while keeping other notifications)
 
 ## Development
 

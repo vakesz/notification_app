@@ -12,7 +12,7 @@ const STATIC_ASSETS = [
 // Service Worker for handling notifications
 self.addEventListener('install', (event) => {
     console.log('[Service Worker] Installing Service Worker...', event);
-    
+
     // Cache static assets
     event.waitUntil(
         caches.open(CACHE_NAME)
@@ -32,7 +32,7 @@ self.addEventListener('install', (event) => {
 
 self.addEventListener('activate', (event) => {
     console.log('[Service Worker] Activating Service Worker...', event);
-    
+
     // Clean up old caches
     event.waitUntil(
         caches.keys()
@@ -58,7 +58,7 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('push', function (event) {
     console.log('[Service Worker] Push Received.');
-    
+
     if (!event.data) {
         console.warn('[Service Worker] Push event has no data');
         return;
@@ -70,9 +70,9 @@ self.addEventListener('push', function (event) {
         console.log('[Service Worker] Push data:', data);
     } catch (e) {
         console.error('[Service Worker] Error parsing push data:', e);
-        data = { 
-            title: 'Notification', 
-            body: event.data.text() 
+        data = {
+            title: 'Notification',
+            body: event.data.text()
         };
     }
 
@@ -111,7 +111,7 @@ self.addEventListener('push', function (event) {
 
 self.addEventListener('notificationclick', function (event) {
     console.log('[Service Worker] Notification click Received.');
-    
+
     // Close the notification
     event.notification.close();
 
@@ -127,55 +127,62 @@ self.addEventListener('notificationclick', function (event) {
                             type: 'window',
                             includeUncontrolled: true
                         });
-                        
+
                         // Check if any window is already open with this URL
                         for (const client of clients) {
-                            if (client.url === url) {
+                            if (client.url === url && 'focus' in client) {
                                 await client.focus();
                                 return;
                             }
                         }
-                        
+
                         // If no window is open, open a new one
-                        await clients.openWindow(url);
+                        if (self.clients.openWindow) {
+                            await self.clients.openWindow(url);
+                        }
                     } else {
                         // Default to dashboard if no URL
                         const clients = await self.clients.matchAll({
                             type: 'window',
                             includeUncontrolled: true
                         });
-                        
+
                         // Check if any window is already open
                         for (const client of clients) {
-                            if (client.url.includes('/dashboard')) {
+                            if (client.url.includes('/dashboard') && 'focus' in client) {
                                 await client.focus();
                                 return;
                             }
                         }
-                        
+
                         // If no window is open, open dashboard
-                        await clients.openWindow('/dashboard');
+                        if (self.clients.openWindow) {
+                            await self.clients.openWindow('/dashboard');
+                        }
                     }
                 } else if (event.action === 'dismiss') {
                     // Handle dismiss action
                     console.log('[Service Worker] Notification dismissed');
                 } else {
-                    // Default click behavior
+                    // Default click behavior - use post URL if available
+                    const url = event.notification.data?.post_url || '/dashboard';
                     const clients = await self.clients.matchAll({
                         type: 'window',
                         includeUncontrolled: true
                     });
-                    
-                    // Check if any window is already open
+
+                    // Check if any window is already open with this URL
                     for (const client of clients) {
-                        if (client.url.includes('/dashboard')) {
+                        if (client.url === url && 'focus' in client) {
                             await client.focus();
                             return;
                         }
                     }
-                    
-                    // If no window is open, open dashboard
-                    await clients.openWindow('/dashboard');
+
+                    // If no window is open, open the target URL
+                    if (self.clients.openWindow) {
+                        await self.clients.openWindow(url);
+                    }
                 }
             } catch (error) {
                 console.error('[Service Worker] Error handling notification click:', error);
@@ -184,17 +191,19 @@ self.addEventListener('notificationclick', function (event) {
                     type: 'window',
                     includeUncontrolled: true
                 });
-                
+
                 // Check if any window is already open
                 for (const client of clients) {
-                    if (client.url.includes('/dashboard')) {
+                    if (client.url.includes('/dashboard') && 'focus' in client) {
                         await client.focus();
                         return;
                     }
                 }
-                
+
                 // If no window is open, open dashboard
-                await clients.openWindow('/dashboard');
+                if (self.clients.openWindow) {
+                    await self.clients.openWindow('/dashboard');
+                }
             }
         })()
     );
@@ -214,7 +223,7 @@ self.addEventListener('fetch', function (event) {
     if (event.request.method !== 'GET') return;
 
     // Check if the request is for a static asset
-    const isStaticAsset = STATIC_ASSETS.some(asset => 
+    const isStaticAsset = STATIC_ASSETS.some(asset =>
         event.request.url.endsWith(asset)
     );
 

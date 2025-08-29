@@ -1,4 +1,22 @@
-"""Service for polling blog posts and creating notifications."""
+"""Service for polling blog posts and creating notifications.
+
+This service continuously monitors blog sources for new posts and triggers
+notification creation when new content is detected:
+
+Key Features:
+- Rate-limited polling to avoid overwhelming blog servers
+- Duplicate post detection to prevent spam
+- Automatic notification creation for new posts
+- Error handling with exponential backoff
+- Configurable polling intervals
+
+Workflow:
+1. Poll blog URL at configured intervals
+2. Parse HTML content to extract post data
+3. Filter out existing posts in database
+4. For each new post, trigger NotificationService.create_post_notification()
+5. Handle errors gracefully with retry logic
+"""
 
 import logging
 import threading
@@ -11,7 +29,7 @@ from apscheduler.schedulers.background import BackgroundScheduler  # type: ignor
 
 from app.core.config import Config
 from app.db.database import DatabaseManager
-from app.db.models import Notification, Post
+from app.db.models import Post
 from app.services.notification import (  # pylint: disable=unused-import
     NotificationService,
 )
@@ -129,7 +147,9 @@ class PollingService:
         try:
             new_posts = self._poll_once()
             if new_posts and self.notifier:
-                self.notifier.create_bulk_notification(new_posts)
+                # Create notifications for each new post
+                notifications = self.notifier.create_bulk_notification(new_posts)
+                logger.info("Created %d notifications for %d new posts", len(notifications), len(new_posts))
             self._last_error = ""
             self._retry_count = 0
         except (HTTPClientError, ValueError, TypeError) as e:
@@ -181,15 +201,18 @@ class PollingService:
                 logger.warning("Skipping post with None id")
                 continue
             logger.info("Added new post: %s", post.id)
-            notif = Notification(
-                post_id=post.id,
-                title=post.title,
-                message=f"New post: {post.title}",
-                created_at=datetime.utcnow(),
-                is_urgent=post.is_urgent,
-                image_url=post.image_url,
-            )
-            self.db.add_notification(notif)
+
+            # Create notification for each new post
+            if self.notifier:
+                try:
+                    notification = self.notifier.create_post_notification(post)
+                    if notification:
+                        logger.info("Created notification for post %s", post.id)
+                    else:
+                        logger.warning("Failed to create notification for post %s", post.id)
+                except (ValueError, TypeError, RuntimeError) as e:
+                    logger.error("Error creating notification for post %s: %s", post.id, e)
+
             new_posts.append(post)
 
         return new_posts

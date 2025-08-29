@@ -18,7 +18,7 @@ class BlogAuthentication:
 
     The authentication method is chosen based on the ``BLOG_API_AUTH_METHOD``
     environment variable. Supported methods are ``oauth2``, ``msal``,
-    ``ntlm`` and ``none`` (default).
+    ``ntlm``, ``cookie`` and ``none`` (default).
     """
 
     def __init__(self) -> None:
@@ -32,6 +32,8 @@ class BlogAuthentication:
             return self._msal_token()
         if self.method == "ntlm":
             return self._ntlm_auth()
+        if self.method == "cookie":
+            return self._cookie_auth()
         logger.info("Blog authentication disabled or unknown method: %s", self.method)
         return None
 
@@ -84,3 +86,55 @@ class BlogAuthentication:
             logger.error("NTLM configuration incomplete")
             return None
         return HttpNtlmAuth(f"{domain}\\{user}", password)
+
+    def _cookie_auth(self) -> Optional[dict]:
+        """Return a cookie descriptor for requests session when configured.
+
+        Supported env vars:
+        - BLOG_API_COOKIES: A semicolon-separated cookie string, e.g.
+            "name1=value1; name2=value2"
+        - BLOG_API_COOKIE_NAME / BLOG_API_COOKIE_VALUE: Fallback single cookie
+        - BLOG_API_COOKIE_DOMAIN: Optional cookie domain override
+        - BLOG_API_COOKIE_PATH: Optional cookie path (defaults to '/')
+        """
+        cookie_string = os.getenv("BLOG_API_COOKIES", "").strip()
+        cookies: dict[str, str] = {}
+
+        if cookie_string:
+            # Parse semicolon-separated cookie pairs
+            try:
+                for part in cookie_string.split(";"):
+                    part = part.strip()
+                    if not part:
+                        continue
+                    if "=" not in part:
+                        logger.warning("Skipping invalid cookie pair (no '='): %s", part)
+                        continue
+                    k, v = part.split("=", 1)
+                    k = k.strip()
+                    v = v.strip()
+                    if k:
+                        cookies[k] = v
+            except Exception as exc:
+                logger.error("Failed to parse BLOG_API_COOKIES: %s", exc)
+                return None
+        else:
+            # Fallback to single cookie env vars
+            name = os.getenv("BLOG_API_COOKIE_NAME")
+            value = os.getenv("BLOG_API_COOKIE_VALUE")
+            if not name or not value:
+                logger.error("Cookie auth configuration incomplete: provide BLOG_API_COOKIES or name/value")
+                return None
+            cookies[name] = value
+
+        if not cookies:
+            logger.error("No valid cookies provided for cookie auth")
+            return None
+
+        domain = os.getenv("BLOG_API_COOKIE_DOMAIN")
+        path = os.getenv("BLOG_API_COOKIE_PATH", "/")
+        return {
+            "cookies": cookies,
+            "domain": domain,
+            "path": path,
+        }

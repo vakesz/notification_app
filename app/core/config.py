@@ -84,41 +84,47 @@ class Config:
             "BLOG_API_URL",
             "PUSH_VAPID_PUBLIC_KEY",
             "PUSH_VAPID_PRIVATE_KEY",
+            "TOKEN_ENCRYPTION_KEY",
         ]
         missing = [var for var in required_vars if not getattr(cls, var)]
         if missing:
-            raise ValueError(f"Missing required configuration: {', '.join(missing)}")
+            error_msg = (
+                f"Missing required environment variables: {', '.join(missing)}. "
+                "Please configure these variables in your environment or .env file and restart the application."
+            )
+            logger.error(error_msg)
+            raise SystemExit(error_msg)
 
         # Validate URLs
         if cls.BLOG_API_URL:
             if not cls.BLOG_API_URL.startswith(("http://", "https://")):
-                raise ValueError(f"BLOG_API_URL must start with http:// or https://: {cls.BLOG_API_URL}")
+                raise SystemExit(f"BLOG_API_URL must start with http:// or https://: {cls.BLOG_API_URL}")
 
             # Validate URL format
             try:
                 parsed = urlparse(cls.BLOG_API_URL)
                 if not parsed.netloc:
-                    raise ValueError(f"Invalid BLOG_API_URL format: {cls.BLOG_API_URL}")
+                    raise SystemExit(f"Invalid BLOG_API_URL format: {cls.BLOG_API_URL}")
             except Exception as e:
-                raise ValueError(f"Invalid BLOG_API_URL format: {cls.BLOG_API_URL}") from e
+                raise SystemExit(f"Invalid BLOG_API_URL format: {cls.BLOG_API_URL}") from e
 
         # Validate numeric settings
         if cls.HTTP_TIMEOUT < 1:
-            raise ValueError("HTTP_TIMEOUT must be at least 1 second")
+            raise SystemExit("HTTP_TIMEOUT must be at least 1 second")
         if cls.HTTP_MAX_RETRIES < 1:
-            raise ValueError("HTTP_MAX_RETRIES must be at least 1")
+            raise SystemExit("HTTP_MAX_RETRIES must be at least 1")
         if cls.HTTP_RETRY_BACKOFF <= 0:
-            raise ValueError("HTTP_RETRY_BACKOFF must be positive")
+            raise SystemExit("HTTP_RETRY_BACKOFF must be positive")
         if cls.POLLING_INTERVAL_MINUTES < 1:
-            raise ValueError("POLLING_INTERVAL_MINUTES must be at least 1 minute")
+            raise SystemExit("POLLING_INTERVAL_MINUTES must be at least 1 minute")
         if cls.POLLING_BACKOFF_FACTOR < 1:
-            raise ValueError("POLLING_BACKOFF_FACTOR must be at least 1")
+            raise SystemExit("POLLING_BACKOFF_FACTOR must be at least 1")
         if cls.POLLING_MAX_BACKOFF < cls.POLLING_INTERVAL_MINUTES:
-            raise ValueError("POLLING_MAX_BACKOFF must be greater than POLLING_INTERVAL_MINUTES")
+            raise SystemExit("POLLING_MAX_BACKOFF must be greater than POLLING_INTERVAL_MINUTES")
         if cls.AUTH_TOKEN_TTL_DAYS < 1:
-            raise ValueError("AUTH_TOKEN_TTL_DAYS must be at least 1 day")
+            raise SystemExit("AUTH_TOKEN_TTL_DAYS must be at least 1 day")
         if cls.PUSH_TTL < 0:
-            raise ValueError("PUSH_TTL must be non-negative")
+            raise SystemExit("PUSH_TTL must be non-negative")
 
 
 class DevelopmentConfig(Config):
