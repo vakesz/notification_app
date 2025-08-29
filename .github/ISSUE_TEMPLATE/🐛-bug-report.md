@@ -3,8 +3,7 @@ name: "\U0001F41B Bug report"
 about: Report a reproducible issue so we can fix it
 title: "[BUG]"
 labels: bug
-assignees: ''
-
+assignees: ""
 ---
 
 **Describe the bug**

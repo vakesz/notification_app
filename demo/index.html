@@ -1,128 +1,194 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
+  <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Company News & Updates</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/fancybox/3.5.7/jquery.fancybox.min.css" />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/fancybox/3.5.7/jquery.fancybox.min.css"
+    />
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 20px;
-            background: #f9f9f9;
-            color: #333;
-        }
-        .one_block {
-            background: #fff;
-            margin-bottom: 20px;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-            position: relative;
-        }
-        .one_block h5 {
-            margin-top: 0;
-            font-size: 1.25rem;
-        }
-        .today a {
-            font-weight: bold;
-            text-decoration: none;
-        }
-        .urgent a {
-            color: #c00;
-        }
-        hr {
-            border: none;
-            border-top: 1px solid #ddd;
-            margin: 40px 0;
-        }
-        .oldtooltip {
-            display: none;
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            background: #fff;
-            border: 1px solid #ccc;
-            padding: 10px;
-            border-radius: 4px;
-            width: 280px;
-            z-index: 10;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        }
-        .oldtooltip.visible {
-            display: block;
-        }
-        .one_block_img img {
-            max-width: 100%;
-            height: auto;
-            border-radius: 4px;
-            margin-top: 15px;
-        }
+      body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 20px;
+        background: #f9f9f9;
+        color: #333;
+      }
+      .one_block {
+        background: #fff;
+        margin-bottom: 20px;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        position: relative;
+      }
+      .one_block h5 {
+        margin-top: 0;
+        font-size: 1.25rem;
+      }
+      .today a {
+        font-weight: bold;
+        text-decoration: none;
+      }
+      .urgent a {
+        color: #c00;
+      }
+      hr {
+        border: none;
+        border-top: 1px solid #ddd;
+        margin: 40px 0;
+      }
+      .oldtooltip {
+        display: none;
+        position: absolute;
+        top: 20px;
+        left: 20px;
+        background: #fff;
+        border: 1px solid #ccc;
+        padding: 10px;
+        border-radius: 4px;
+        width: 280px;
+        z-index: 10;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      }
+      .oldtooltip.visible {
+        display: block;
+      }
+      .one_block_img img {
+        max-width: 100%;
+        height: auto;
+        border-radius: 4px;
+        margin-top: 15px;
+      }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/fancybox/3.5.7/jquery.fancybox.min.js"></script>
     <script>
-        function showTooltip(id) {
-            document.getElementById(id).classList.add('visible');
-        }
-        function hideTooltip(id) {
-            document.getElementById(id).classList.remove('visible');
-        }
+      function showTooltip(id) {
+        document.getElementById(id).classList.add("visible");
+      }
+      function hideTooltip(id) {
+        document.getElementById(id).classList.remove("visible");
+      }
     </script>
-</head>
-<body>
+  </head>
+  <body>
     <div class="one_block">
-        <div id="block1" class="oldtooltip">
-            <h5>Quarterly AI Insights: Top 5 Breakthroughs in Q2 2025</h5>
-            <span>Explore the leading AI innovations of the past quarter, including new deep-learning architectures and industry applications. <a href="#">Read full report</a></span>
-        </div>
-        <div class="today">
-            <a href="/posts/q2-ai-insights" onmouseover="showTooltip('block1')" onmouseout="hideTooltip('block1')">Quarterly AI Insights: Top 5 Breakthroughs in Q2 2025</a>
-        </div>
-        <p>Global - All Divisions - Research & Development - News (<time datetime="2025-06-16T09:45:00">2025-06-16 09:45:00</time>)</p>
-        <div class="one_block_img">
-            <a class="fancybox image" data-fancybox="gallery" href="https://source.unsplash.com/800x600/?ai,technology">
-                <img src="https://source.unsplash.com/800x600/?ai,technology" alt="AI Breakthroughs" />
-            </a>
-        </div>
+      <div id="block1" class="oldtooltip">
+        <h5>Quarterly AI Insights: Top 5 Breakthroughs in Q2 2025</h5>
+        <span
+          >Explore the leading AI innovations of the past quarter, including new
+          deep-learning architectures and industry applications.
+          <a href="#">Read full report</a></span
+        >
+      </div>
+      <div class="today">
+        <a
+          href="/posts/q2-ai-insights"
+          onmouseover="showTooltip('block1')"
+          onmouseout="hideTooltip('block1')"
+          >Quarterly AI Insights: Top 5 Breakthroughs in Q2 2025</a
+        >
+      </div>
+      <p>
+        Global - All Divisions - Research & Development - News (<time
+          datetime="2025-06-16T09:45:00"
+          >2025-06-16 09:45:00</time
+        >)
+      </p>
+      <div class="one_block_img">
+        <a
+          class="fancybox image"
+          data-fancybox="gallery"
+          href="https://source.unsplash.com/800x600/?ai,technology"
+        >
+          <img
+            src="https://source.unsplash.com/800x600/?ai,technology"
+            alt="AI Breakthroughs"
+          />
+        </a>
+      </div>
     </div>
     <hr />
 
     <div class="one_block">
-        <div id="block2" class="oldtooltip">
-            <h5>June Payroll Submission Reminder</h5>
-            <span>This is a friendly reminder to submit your June timesheets and expense reports by Friday. Late submissions may delay payroll processing. <a href="#">Submit now</a></span>
-        </div>
-        <div class="today urgent">
-            <a href="/posts/june-payroll-reminder" onmouseover="showTooltip('block2')" onmouseout="hideTooltip('block2')">June Payroll Submission Reminder</a>
-        </div>
-        <p>Local - Budapest Office - Finance Department - Reminder (<time datetime="2025-06-15T17:30:00">2025-06-15 17:30:00</time>)</p>
-        <div class="one_block_img">
-            <a class="fancybox image" data-fancybox="gallery" href="https://source.unsplash.com/800x600/?office,finance">
-                <img src="https://source.unsplash.com/800x600/?office,finance" alt="Payroll Reminder" />
-            </a>
-        </div>
+      <div id="block2" class="oldtooltip">
+        <h5>June Payroll Submission Reminder</h5>
+        <span
+          >This is a friendly reminder to submit your June timesheets and
+          expense reports by Friday. Late submissions may delay payroll
+          processing. <a href="#">Submit now</a></span
+        >
+      </div>
+      <div class="today urgent">
+        <a
+          href="/posts/june-payroll-reminder"
+          onmouseover="showTooltip('block2')"
+          onmouseout="hideTooltip('block2')"
+          >June Payroll Submission Reminder</a
+        >
+      </div>
+      <p>
+        Local - Budapest Office - Finance Department - Reminder (<time
+          datetime="2025-06-15T17:30:00"
+          >2025-06-15 17:30:00</time
+        >)
+      </p>
+      <div class="one_block_img">
+        <a
+          class="fancybox image"
+          data-fancybox="gallery"
+          href="https://source.unsplash.com/800x600/?office,finance"
+        >
+          <img
+            src="https://source.unsplash.com/800x600/?office,finance"
+            alt="Payroll Reminder"
+          />
+        </a>
+      </div>
     </div>
     <hr />
 
     <div class="one_block">
-        <div id="block3" class="oldtooltip">
-            <h5>Summer Ambassador Program Kickoff</h5>
-            <span>Join us for the launch event of the 2025 Ambassador Program. Network with colleagues and learn about upcoming activities. <a href="#">Event details</a></span>
-        </div>
-        <div class="today">
-            <a href="/events/summer-ambassador-kickoff" onmouseover="showTooltip('block3')" onmouseout="hideTooltip('block3')">Summer Ambassador Program Kickoff</a>
-        </div>
-        <p>Local - Budapest Office - Corporate Communications - Events (<time datetime="2025-06-14T08:15:00">2025-06-14 08:15:00</time>)</p>
-        <div class="one_block_img">
-            <a class="fancybox image" data-fancybox="gallery" href="https://source.unsplash.com/800x600/?team,event">
-                <img src="https://source.unsplash.com/800x600/?team,event" alt="Ambassador Program" />
-            </a>
-        </div>
+      <div id="block3" class="oldtooltip">
+        <h5>Summer Ambassador Program Kickoff</h5>
+        <span
+          >Join us for the launch event of the 2025 Ambassador Program. Network
+          with colleagues and learn about upcoming activities.
+          <a href="#">Event details</a></span
+        >
+      </div>
+      <div class="today">
+        <a
+          href="/events/summer-ambassador-kickoff"
+          onmouseover="showTooltip('block3')"
+          onmouseout="hideTooltip('block3')"
+          >Summer Ambassador Program Kickoff</a
+        >
+      </div>
+      <p>
+        Local - Budapest Office - Corporate Communications - Events (<time
+          datetime="2025-06-14T08:15:00"
+          >2025-06-14 08:15:00</time
+        >)
+      </p>
+      <div class="one_block_img">
+        <a
+          class="fancybox image"
+          data-fancybox="gallery"
+          href="https://source.unsplash.com/800x600/?team,event"
+        >
+          <img
+            src="https://source.unsplash.com/800x600/?team,event"
+            alt="Ambassador Program"
+          />
+        </a>
+      </div>
     </div>
     <hr />
 
     <!-- Additional updates can be added below using the same structure -->
-</body>
+  </body>
 </html>

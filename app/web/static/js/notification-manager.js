@@ -371,33 +371,34 @@
           badge.style.display = "none";
         }
       }
-    }    async markAllRead() {
-        try {
-            const resp = await fetch("/api/notifications/mark-read", {
-                method: "POST",
-                credentials: "same-origin",
-                headers: {
-                    Accept: "application/json",
-                    "X-CSRFToken": CSRF_TOKEN,
-                },
-            });
-            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-            const data = await resp.json();
-            if (data.success) {
-                this.updateNotificationBadge(0);
-                const container = document.getElementById("notifications-content");
-                if (container) {
-                    container.innerHTML =
-                        `<p class="text-gray-500 text-sm text-center py-8">` +
-                        `<i class="fas fa-inbox text-xl mb-2 block"></i>No new notifications</p>`;
-                }
-                window.newPostsCount = 0;
-                const newBadge = document.getElementById("newPostsBadge");
-                if (newBadge) newBadge.style.display = "none";
-            }
-        } catch (err) {
-            console.error("Failed to mark notifications read:", err);
+    }
+    async markAllRead() {
+      try {
+        const resp = await fetch("/api/notifications/mark-read", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: {
+            Accept: "application/json",
+            "X-CSRFToken": CSRF_TOKEN,
+          },
+        });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const data = await resp.json();
+        if (data.success) {
+          this.updateNotificationBadge(0);
+          const container = document.getElementById("notifications-content");
+          if (container) {
+            container.innerHTML =
+              `<p class="text-gray-500 text-sm text-center py-8">` +
+              `<i class="fas fa-inbox text-xl mb-2 block"></i>No new notifications</p>`;
+          }
+          window.newPostsCount = 0;
+          const newBadge = document.getElementById("newPostsBadge");
+          if (newBadge) newBadge.style.display = "none";
         }
+      } catch (err) {
+        console.error("Failed to mark notifications read:", err);
+      }
     }
   }
 })();

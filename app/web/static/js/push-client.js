@@ -101,7 +101,10 @@
       let subscription = await swRegistration.pushManager.getSubscription();
       if (subscription === null) {
         console.log("Not subscribed, attempting to subscribe...");
-        if (typeof PUSH_VAPID_PUBLIC_KEY === "undefined" || !PUSH_VAPID_PUBLIC_KEY) {
+        if (
+          typeof PUSH_VAPID_PUBLIC_KEY === "undefined" ||
+          !PUSH_VAPID_PUBLIC_KEY
+        ) {
           console.error("VAPID public key is not defined. Cannot subscribe.");
           showError("Push notification setup error: Missing VAPID public key.");
           return;
@@ -123,7 +126,7 @@
         // Include user key in subscription if available
         const subscriptionData = {
           ...subscription.toJSON(),
-          user_key: window.currentUserKey || null  // This should be set by the backend when rendering the page
+          user_key: window.currentUserKey || null, // This should be set by the backend when rendering the page
         };
 
         const response = await fetch("/api/subscriptions", {
@@ -156,10 +159,11 @@
     // Check subscription expiration every hour
     setInterval(async () => {
       try {
-        if (!('serviceWorker' in navigator)) return;
+        if (!("serviceWorker" in navigator)) return;
         const registration = await navigator.serviceWorker.getRegistration();
         if (!registration) return;
-        const currentSubscription = await registration.pushManager.getSubscription();
+        const currentSubscription =
+          await registration.pushManager.getSubscription();
         if (!currentSubscription) {
           console.log("Subscription expired, resubscribing...");
           await subscribeForPush();
@@ -209,7 +213,9 @@
                 },
               });
               if (!response.ok) {
-                throw new Error(`Failed to remove subscription from server: ${response.status}`);
+                throw new Error(
+                  `Failed to remove subscription from server: ${response.status}`,
+                );
               }
               console.log("Subscription removed from server");
             });

@@ -161,29 +161,29 @@ docker run -d \
 
 #### Run with Docker Compose
 
-   ```yaml
-   version: '3.8'
-   services:
-     app:
-       image: ghcr.io/vakesz/notification_app:latest
-       ports:
-         - "5000:5000"
-       environment:
-         - SECRET_KEY=your-secret-key
-         - AAD_CLIENT_ID=your-client-id
-         - AAD_CLIENT_SECRET=your-azure-ad-client-secret
-         - AAD_TENANT_ID=your-tenant-id
-         - AAD_REDIRECT_URI=http://localhost:5000/auth/callback
-         - BLOG_API_URL=https://your-blog-api-url.com
-         - PUSH_VAPID_PUBLIC_KEY=your-vapid-public-key
-         - PUSH_VAPID_PRIVATE_KEY=your-vapid-private-key
-         - PUSH_CONTACT_EMAIL=your-contact-email@example.com
-         - TOKEN_ENCRYPTION_KEY=your-fernet-key
-       volumes:
-         - notification-db:/app/db
-   volumes:
-     notification-db:
-   ```
+```yaml
+version: "3.8"
+services:
+  app:
+    image: ghcr.io/vakesz/notification_app:latest
+    ports:
+      - "5000:5000"
+    environment:
+      - SECRET_KEY=your-secret-key
+      - AAD_CLIENT_ID=your-client-id
+      - AAD_CLIENT_SECRET=your-azure-ad-client-secret
+      - AAD_TENANT_ID=your-tenant-id
+      - AAD_REDIRECT_URI=http://localhost:5000/auth/callback
+      - BLOG_API_URL=https://your-blog-api-url.com
+      - PUSH_VAPID_PUBLIC_KEY=your-vapid-public-key
+      - PUSH_VAPID_PRIVATE_KEY=your-vapid-private-key
+      - PUSH_CONTACT_EMAIL=your-contact-email@example.com
+      - TOKEN_ENCRYPTION_KEY=your-fernet-key
+    volumes:
+      - notification-db:/app/db
+volumes:
+  notification-db:
+```
 
 **Note:** The Docker image uses multi-architecture support (amd64/arm64) and runs with `gunicorn -w 4 -b 0.0.0.0:5000 "app.web.main:create_app()"` to properly initialize the Flask application factory.
 

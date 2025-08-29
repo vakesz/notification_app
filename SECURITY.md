@@ -9,7 +9,6 @@ We actively support security fixes.
 If you discover a security issue, please **do not** open a public issue. Instead, please use confidential channels:
 
 1. **GitHub Security Advisory**
-
    - Use the [GitHub Security Advisory](https://github.com/vakesz/notification_app/security/advisories/new)
 
 ## Security Response Process

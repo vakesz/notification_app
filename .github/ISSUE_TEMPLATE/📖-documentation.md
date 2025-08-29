@@ -3,8 +3,7 @@ name: "\U0001F4D6 Documentation"
 about: Improve or clarify the documentation
 title: "[DOC]"
 labels: documentation
-assignees: ''
-
+assignees: ""
 ---
 
 **Which part of the documentation needs improvement?**

@@ -1,63 +1,116 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>{% block title %}{{ app_name }}{% endblock %}</title>
-    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
-    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
-    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <link
+      href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css"
+      rel="stylesheet"
+    />
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
+      rel="stylesheet"
+    />
+    <link
+      rel="icon"
+      type="image/x-icon"
+      href="{{ url_for('static', filename='favicon.ico') }}"
+    />
+    <meta name="csrf-token" content="{{ csrf_token() }}" />
     {% block head %}{% endblock %}
-</head>
-<body class="bg-gray-50 min-h-screen">
+  </head>
+  <body class="bg-gray-50 min-h-screen">
     {% if session.user %}
     <nav class="bg-blue-700 text-white py-3 shadow">
-        <div class="container mx-auto flex justify-between items-center px-4">
-            <a class="flex items-center font-bold text-lg" href="{{ url_for('dashboard_bp.dashboard') }}">
-                <span class="inline-block mr-2">🔔</span> {{ app_name }}
-            </a>
-            <div class="relative" id="user-menu">
-                <button class="flex items-center focus:outline-none" id="user-menu-button">
-                    {% if session.has_picture %}
-                    <img src="{{ url_for('dashboard_bp.user_photo') }}" alt="Profile Photo" class="w-8 h-8 rounded-full object-cover mr-2">
-                    {% else %}
-                    <span class="inline-block w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center mr-2">👤</span>
-                    {% endif %}
-                    <span>{{ session.user.name }}</span>
-                    <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                </button>
-                <ul class="absolute right-0 top-full pt-2 w-48 bg-white text-gray-700 rounded shadow-lg hidden" id="user-menu-dropdown">
-                    <li><a class="block px-4 py-2 hover:bg-gray-100" href="{{ url_for('dashboard_bp.refresh_posts') }}">🔄 Refresh Posts</a></li>
-                    <li><hr class="my-1"></li>
-                    <li><a class="block px-4 py-2 hover:bg-gray-100" href="{{ url_for('auth_bp.logout') }}">🚪 Logout</a></li>
-                </ul>
-            </div>
+      <div class="container mx-auto flex justify-between items-center px-4">
+        <a
+          class="flex items-center font-bold text-lg"
+          href="{{ url_for('dashboard_bp.dashboard') }}"
+        >
+          <span class="inline-block mr-2">🔔</span> {{ app_name }}
+        </a>
+        <div class="relative" id="user-menu">
+          <button
+            class="flex items-center focus:outline-none"
+            id="user-menu-button"
+          >
+            {% if session.has_picture %}
+            <img
+              src="{{ url_for('dashboard_bp.user_photo') }}"
+              alt="Profile Photo"
+              class="w-8 h-8 rounded-full object-cover mr-2"
+            />
+            {% else %}
+            <span
+              class="inline-block w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center mr-2"
+              >👤</span
+            >
+            {% endif %}
+            <span>{{ session.user.name }}</span>
+            <svg
+              class="w-4 h-4 ml-1"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M19 9l-7 7-7-7"
+              />
+            </svg>
+          </button>
+          <ul
+            class="absolute right-0 top-full pt-2 w-48 bg-white text-gray-700 rounded shadow-lg hidden"
+            id="user-menu-dropdown"
+          >
+            <li>
+              <a
+                class="block px-4 py-2 hover:bg-gray-100"
+                href="{{ url_for('dashboard_bp.refresh_posts') }}"
+                >🔄 Refresh Posts</a
+              >
+            </li>
+            <li><hr class="my-1" /></li>
+            <li>
+              <a
+                class="block px-4 py-2 hover:bg-gray-100"
+                href="{{ url_for('auth_bp.logout') }}"
+                >🚪 Logout</a
+              >
+            </li>
+          </ul>
         </div>
+      </div>
     </nav>
     <div class="container mx-auto mt-8 px-4">
-    {% else %}
-    <div class="flex min-h-screen items-center justify-center bg-gradient-to-br from-indigo-400 to-purple-500">
+      {% else %}
+      <div
+        class="flex min-h-screen items-center justify-center bg-gradient-to-br from-indigo-400 to-purple-500"
+      >
         <div class="bg-white rounded-xl shadow-xl p-8 w-full max-w-md">
-    {% endif %}
-
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                {% for category, message in messages %}
-                    <div class="mb-4 px-4 py-3 rounded relative text-white {{ 'bg-red-500' if category == 'error' else 'bg-green-500' if category == 'success' else 'bg-blue-500' }}">
-                        {{ message }}
-                        <button type="button" class="absolute top-2 right-2 text-white" onclick="this.parentElement.remove()">&times;</button>
-                    </div>
-                {% endfor %}
-            {% endif %}
-        {% endwith %}
-
-        {% block content %}{% endblock %}
-
-    {% if session.user %}
-    </div>
-    {% else %}
+          {% endif %} {% with messages =
+          get_flashed_messages(with_categories=true) %} {% if messages %} {% for
+          category, message in messages %}
+          <div
+            class="mb-4 px-4 py-3 rounded relative text-white {{ 'bg-red-500' if category == 'error' else 'bg-green-500' if category == 'success' else 'bg-blue-500' }}"
+          >
+            {{ message }}
+            <button
+              type="button"
+              class="absolute top-2 right-2 text-white"
+              onclick="this.parentElement.remove()"
+            >
+              &times;
+            </button>
+          </div>
+          {% endfor %} {% endif %} {% endwith %} {% block content %}{% endblock
+          %} {% if session.user %}
         </div>
+        {% else %}
+      </div>
     </div>
     {% endif %}
 
@@ -65,7 +118,6 @@
     {% if session.user %}
     <script src="{{ url_for('static', filename='js/session.js') }}"></script>
     <script src="{{ url_for('static', filename='js/user-menu.js') }}"></script>
-    {% endif %}
-    {% block scripts %}{% endblock %}
-</body>
+    {% endif %} {% block scripts %}{% endblock %}
+  </body>
 </html>

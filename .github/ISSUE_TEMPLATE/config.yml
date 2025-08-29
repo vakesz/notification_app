@@ -2,8 +2,8 @@
 # │    Notification App Configuration (v1.0)                                   │
 # └────────────────────────────────────────────────────────────────────────────┘
 
-version: "1.0"                           # Config schema version
-blank_issues_enabled: false              # If true, creates empty issues when triggered
+version: "1.0" # Config schema version
+blank_issues_enabled: false # If true, creates empty issues when triggered
 
 # ── Issue & PR template locations (optional) ─────────────────────────────────
 templates:
@@ -12,18 +12,18 @@ templates:
 
 # ── Default issue metadata applied automatically ─────────────────────────────
 defaults:
-  labels: ["triage"]                     # Labels to add to every incoming issue
-  assignees: []                          # GitHub usernames to auto-assign
-  milestone: null                        # e.g. "v2.0"
+  labels: ["triage"] # Labels to add to every incoming issue
+  assignees: [] # GitHub usernames to auto-assign
+  milestone: null # e.g. "v2.0"
 
 # ── Predefined contact links (rendered in UI or docs) ─────────────────────────
 contact_links:
-  - id: security                         # unique key for internal reference
+  - id: security # unique key for internal reference
     name: "Security Vulnerability"
     url: "https://github.com/vakesz/notification_app/security/policy"
     description: "Report vulnerabilities privately via our security policy."
-    icon: "shield"                       # (optional) UI icon name
-    labels: ["security"]                 # auto-apply to issues created via this link
+    icon: "shield" # (optional) UI icon name
+    labels: ["security"] # auto-apply to issues created via this link
 
   - id: discussions
     name: "General Questions"
