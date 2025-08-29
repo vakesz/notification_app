@@ -2,7 +2,7 @@
 
 import logging
 import os
-from typing import Any, Optional
+from typing import Any
 
 import requests
 from msal import ConfidentialClientApplication
@@ -24,7 +24,7 @@ class BlogAuthentication:
     def __init__(self) -> None:
         self.method = os.getenv("BLOG_API_AUTH_METHOD", "none").lower()
 
-    def blog_auth(self) -> Optional[Any]:
+    def blog_auth(self) -> Any | None:
         """Return credentials suitable for ``requests`` based on settings."""
         if self.method == "oauth2":
             return self._oauth2_token()
@@ -37,7 +37,7 @@ class BlogAuthentication:
         logger.info("Blog authentication disabled or unknown method: %s", self.method)
         return None
 
-    def _oauth2_token(self) -> Optional[str]:
+    def _oauth2_token(self) -> str | None:
         client_id = os.getenv("BLOG_API_OAUTH2_CLIENT_ID")
         client_secret = os.getenv("BLOG_API_OAUTH2_CLIENT_SECRET")
         token_url = os.getenv("BLOG_API_OAUTH2_TOKEN_URL")
@@ -57,7 +57,7 @@ class BlogAuthentication:
             logger.error("OAuth2 token fetch failed: %s", exc)
             return None
 
-    def _msal_token(self) -> Optional[str]:
+    def _msal_token(self) -> str | None:
         client_id = os.getenv("BLOG_API_MSAL_CLIENT_ID")
         client_secret = os.getenv("BLOG_API_MSAL_CLIENT_SECRET")
         tenant_id = os.getenv("BLOG_API_MSAL_TENANT_ID")
@@ -78,7 +78,7 @@ class BlogAuthentication:
             logger.error("MSAL token acquisition failed: %s", exc)
             return None
 
-    def _ntlm_auth(self) -> Optional[HttpNtlmAuth]:
+    def _ntlm_auth(self) -> HttpNtlmAuth | None:
         user = os.getenv("BLOG_API_NTLM_USER")
         password = os.getenv("BLOG_API_NTLM_PASSWORD")
         domain = os.getenv("BLOG_API_NTLM_DOMAIN")
@@ -87,7 +87,7 @@ class BlogAuthentication:
             return None
         return HttpNtlmAuth(f"{domain}\\{user}", password)
 
-    def _cookie_auth(self) -> Optional[dict]:
+    def _cookie_auth(self) -> dict | None:
         """Return a cookie descriptor for requests session when configured.
 
         Supported env vars:
@@ -104,13 +104,13 @@ class BlogAuthentication:
             # Parse semicolon-separated cookie pairs
             try:
                 for part in cookie_string.split(";"):
-                    part = part.strip()
-                    if not part:
+                    token = part.strip()
+                    if not token:
                         continue
-                    if "=" not in part:
-                        logger.warning("Skipping invalid cookie pair (no '='): %s", part)
+                    if "=" not in token:
+                        logger.warning("Skipping invalid cookie pair (no '='): %s", token)
                         continue
-                    k, v = part.split("=", 1)
+                    k, v = token.split("=", 1)
                     k = k.strip()
                     v = v.strip()
                     if k:

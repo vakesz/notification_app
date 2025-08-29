@@ -22,8 +22,8 @@ Notification Flow:
 import json
 import logging
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
-from typing import Any, Dict, List, Optional, Set
+from datetime import datetime, timezone
+from typing import Any
 
 from pywebpush import WebPushException, webpush
 
@@ -47,7 +47,7 @@ class NotificationService:
         """Initialize notification service."""
         self.db = db
 
-    def get_settings(self, user_key: str) -> Dict[str, Any]:
+    def get_settings(self, user_key: str) -> dict[str, Any]:
         """Get notification settings for a user."""
         try:
             # Get settings from database
@@ -104,7 +104,7 @@ class NotificationService:
                 "keywords": [],
             }
 
-    def update_settings(self, user_key: str, settings: Dict[str, Any]) -> bool:
+    def update_settings(self, user_key: str, settings: dict[str, Any]) -> bool:
         """Update notification settings for a user."""
         try:
             # Validate settings
@@ -161,7 +161,7 @@ class NotificationService:
             logger.error("Error updating notification settings: %s", e)
             return False
 
-    def create_post_notification(self, post: Post) -> Optional[Notification]:
+    def create_post_notification(self, post: Post) -> Notification | None:
         """
         Create a notification for a new post.
 
@@ -185,21 +185,27 @@ class NotificationService:
             # URGENT path: For urgent posts, bypass all filters and target all users
             if post.is_urgent:
                 target_users = None  # None = "all users with push enabled" - URGENT path
-                logger.info("URGENT post %s will be sent to all users with push notifications enabled", post.id)
+                logger.info(
+                    "URGENT post %s will be sent to all users with push notifications enabled",
+                    post.id,
+                )
             else:
                 # Get users who match filters for non-urgent posts
                 target_users = self._get_filtered_users_for_post(post)
 
                 # For non-urgent posts, if no users match filters, skip delivery entirely
                 if target_users is not None and len(target_users) == 0:
-                    logger.info("No recipients match filters; skipping push delivery for post %s", post.id)
+                    logger.info(
+                        "No recipients match filters; skipping push delivery for post %s",
+                        post.id,
+                    )
                     # Still create the notification but return early without delivery
                     notification = Notification(
                         post_id=post.id,
                         title=f"{'🚨 URGENT: ' if post.is_urgent else ''}{post.title}",
                         message=content,
                         image_url=post.image_url if post.has_image else None,
-                        created_at=datetime.now(),
+                        created_at=datetime.now(timezone.utc),
                         is_urgent=post.is_urgent,
                     )
 
@@ -213,7 +219,7 @@ class NotificationService:
                 title=f"{'🚨 URGENT: ' if post.is_urgent else ''}{post.title}",
                 message=content,
                 image_url=post.image_url if post.has_image else None,
-                created_at=datetime.now(),
+                created_at=datetime.now(timezone.utc),
                 is_urgent=post.is_urgent,
             )
 
@@ -225,7 +231,7 @@ class NotificationService:
                     all_subscriptions = self.db.get_push_subscriptions_for_users([], urgent=True)
                     all_settings = self.db.get_all_notification_settings()
                     all_user_keys_combined = list(
-                        set(sub.get("user_key") for sub in all_subscriptions if sub.get("user_key"))
+                        {sub.get("user_key") for sub in all_subscriptions if sub.get("user_key")}
                         | set(all_settings.keys())
                     )
                     if all_user_keys_combined:
@@ -255,11 +261,11 @@ class NotificationService:
                 post_id=post.id,
                 title="New Post Notification",
                 message="Content not available",
-                created_at=datetime.now(),
+                created_at=datetime.now(timezone.utc),
                 is_urgent=False,
             )
 
-    def create_bulk_notification(self, posts: List[Post]) -> List[Notification]:
+    def create_bulk_notification(self, posts: list[Post]) -> list[Notification]:
         """Create notifications for multiple posts."""
         notifications = []
 
@@ -272,7 +278,10 @@ class NotificationService:
         return notifications
 
     def send_push_notification(
-        self, subscription: Dict[str, Any], notification: Notification, post_url: Optional[str] = None
+        self,
+        subscription: dict[str, Any],
+        notification: Notification,
+        post_url: str | None = None,
     ) -> bool:
         """Send a push notification to a subscription."""
 
@@ -281,7 +290,11 @@ class NotificationService:
 
         try:
             if not self._validate_subscription(subscription):
-                logger.error("Invalid subscription format for user %s, endpoint %s", user_key, endpoint)
+                logger.error(
+                    "Invalid subscription format for user %s, endpoint %s",
+                    user_key,
+                    endpoint,
+                )
                 return False
 
             if not Config.PUSH_VAPID_PRIVATE_KEY or not Config.PUSH_VAPID_CLAIMS:
@@ -324,18 +337,26 @@ class NotificationService:
             # Mark invalid subscriptions for removal on HTTP error codes that indicate permanent failure
             if e.response and e.response.status_code in (400, 404, 410, 413):
                 logger.info(
-                    "Removing invalid subscription for user %s due to HTTP %d", user_key, e.response.status_code
+                    "Removing invalid subscription for user %s due to HTTP %d",
+                    user_key,
+                    e.response.status_code,
                 )
                 self.db.remove_push_subscription(subscription)
             return False
         except (TypeError, ValueError, json.JSONDecodeError) as e:
             logger.error(
-                "Error preparing push notification for user %s, post %s: %s", user_key, notification.post_id, e
+                "Error preparing push notification for user %s, post %s: %s",
+                user_key,
+                notification.post_id,
+                e,
             )
             return False
 
     def _deliver_notification(
-        self, notification: Notification, target_users: Optional[Set[str]] = None, post_url: Optional[str] = None
+        self,
+        notification: Notification,
+        target_users: set[str] | None = None,
+        post_url: str | None = None,
     ) -> None:
         """
         Send a notification to targeted subscriptions based on user filters.
@@ -380,7 +401,7 @@ class NotificationService:
             for sub in filtered_subscriptions:
                 executor.submit(self.send_push_notification, sub, notification, post_url)
 
-    def _validate_subscription(self, subscription: Dict[str, Any]) -> bool:
+    def _validate_subscription(self, subscription: dict[str, Any]) -> bool:
         """Validate push subscription format."""
         required_fields = ["endpoint", "keys"]
         if not all(field in subscription for field in required_fields):
@@ -393,7 +414,7 @@ class NotificationService:
 
         return True
 
-    def create_test_notification(self) -> Optional[Notification]:
+    def create_test_notification(self) -> Notification | None:
         """Create a test notification with inline text."""
         try:
             logger.info("Creating test notification to verify settings")
@@ -401,7 +422,7 @@ class NotificationService:
                 post_id="test",
                 title="🧪 Test Notification",
                 message="This is a test notification to verify your settings are working correctly.",
-                created_at=datetime.now(),
+                created_at=datetime.now(timezone.utc),
                 is_urgent=False,
             )
             self._deliver_notification(notif, None, None)
@@ -412,7 +433,7 @@ class NotificationService:
 
         return None
 
-    def _get_filtered_users_for_post(self, post: Post) -> Set[str]:
+    def _get_filtered_users_for_post(self, post: Post) -> set[str]:
         """
         Get the set of user keys who should receive notifications for this post
         based on their location and keyword filter settings.
@@ -444,13 +465,12 @@ class NotificationService:
             logger.error("Error filtering users for post %s: %s", post.id, e)
             return set()
 
-    def _filter_by_location(self, post: Post, all_settings: Dict[str, Any]) -> Set[str]:
+    def _filter_by_location(self, post: Post, all_settings: dict[str, Any]) -> set[str]:
         """Filter users by location preferences."""
         location_filtered_users = set()
 
-        for user_key, settings in all_settings.items():
-            if isinstance(settings, str):
-                settings = json.loads(settings)
+        for user_key, raw_settings in all_settings.items():
+            settings = json.loads(raw_settings) if isinstance(raw_settings, str) else raw_settings
 
             location_filter = settings.get("locationFilter", {})
             if not location_filter.get("enabled", False):
@@ -475,8 +495,11 @@ class NotificationService:
         return location_filtered_users
 
     def _filter_by_keywords(
-        self, post: Post, location_filtered_users: Set[str], all_settings: Dict[str, Any]
-    ) -> Set[str]:
+        self,
+        post: Post,
+        location_filtered_users: set[str],
+        all_settings: dict[str, Any],
+    ) -> set[str]:
         """Filter users by keyword preferences."""
         keyword_filtered_users = set()
 
@@ -509,7 +532,7 @@ class NotificationService:
         """Get count of notifications for a specific user."""
         return self.db.get_user_notification_count(user_id, unread_only)
 
-    def get_user_notifications(self, user_id: str, limit: int = 10, unread_only: bool = False) -> List[Dict[str, Any]]:
+    def get_user_notifications(self, user_id: str, limit: int = 10, unread_only: bool = False) -> list[dict[str, Any]]:
         """Get notifications for a specific user with read status."""
         return self.db.get_user_notifications(user_id, limit, unread_only)
 
@@ -517,7 +540,7 @@ class NotificationService:
         """Mark a specific notification as read for a user."""
         return self.db.mark_user_notification_read(user_id, notification_id)
 
-    def mark_notifications_read(self, user_id: str, notification_ids: List[int]) -> bool:
+    def mark_notifications_read(self, user_id: str, notification_ids: list[int]) -> bool:
         """Mark multiple notifications as read for a user."""
         return self.db.mark_notifications_read(user_id, notification_ids)
 
@@ -542,12 +565,14 @@ class NotificationService:
 
         if notif_count > 0:
             logger.info(
-                "Cleaned up %d expired notifications and %d user notification entries", notif_count, user_notif_count
+                "Cleaned up %d expired notifications and %d user notification entries",
+                notif_count,
+                user_notif_count,
             )
 
         return notif_count
 
-    def cleanup_user_data(self, user_id: str) -> Dict[str, int]:
+    def cleanup_user_data(self, user_id: str) -> dict[str, int]:
         """
         Clean up all notification data for a user when they're deactivated/removed.
 

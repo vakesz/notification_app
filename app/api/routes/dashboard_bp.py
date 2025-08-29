@@ -2,8 +2,9 @@
 
 import io
 import logging
-from datetime import datetime, timedelta
-from typing import Any, Callable, Dict, Optional, Union
+from collections.abc import Callable
+from datetime import datetime, timedelta, timezone
+from typing import Any
 
 import requests
 from flask import (
@@ -31,19 +32,19 @@ dashboard_bp = Blueprint("dashboard_bp", __name__)
 logger = logging.getLogger(__name__)
 
 # Initialize rate limiter
-# TODO: Configure rate limiter to use Redis storage backend for production
+# TODO @vakesz: Configure rate limiter to use Redis storage backend for production
 limiter = Limiter(key_func=get_remote_address)
 
 # --- Helper Functions ---
 
 
-def _get_user_key() -> Optional[str]:
+def _get_user_key() -> str | None:
     """Get the user key from session for identification."""
     user = session.get("user") or {}
     return user.get("preferred_username") or user.get("name")
 
 
-def _render_dashboard_context(**overrides: Any) -> Dict[str, Any]:
+def _render_dashboard_context(**overrides: Any) -> dict[str, Any]:
     """Gather default context for dashboard rendering.
 
     Args:
@@ -54,7 +55,7 @@ def _render_dashboard_context(**overrides: Any) -> Dict[str, Any]:
     """
     user = session.get("user", {})
     key = _get_user_key()
-    now = datetime.now()
+    now = datetime.now(timezone.utc)
 
     # Fetch data
     settings = current_app.notification_service.get_settings(key)
@@ -85,7 +86,7 @@ def _render_dashboard_context(**overrides: Any) -> Dict[str, Any]:
     return context
 
 
-def _json_response(func: Callable, *args: Any, **kwargs: Any) -> Union[Response, tuple]:
+def _json_response(func: Callable, *args: Any, **kwargs: Any) -> Response | tuple:
     """Helper for JSON API endpoints with standardized error handling.
 
     Args:
@@ -101,12 +102,11 @@ def _json_response(func: Callable, *args: Any, **kwargs: Any) -> Union[Response,
         response_data = result if isinstance(result, dict) else {"success": True, "data": result}
         return jsonify(response_data)
     except (AttributeError, KeyError, ValueError, RuntimeError, TypeError) as e:
-        logger.error(
+        logger.exception(
             "API error: %s | endpoint=%s | user=%s",
             e,
             request.endpoint,
             _get_user_key(),
-            exc_info=True,
         )
         return jsonify({"error": str(e)}), 500
 
@@ -122,7 +122,7 @@ def dashboard() -> str:
         context = _render_dashboard_context()
         return render_template("dashboard.html", **context)
     except (AttributeError, KeyError, ValueError, RuntimeError) as e:
-        logger.error("Dashboard error: %s | user=%s", e, _get_user_key(), exc_info=True)
+        logger.exception("Dashboard error: %s | user=%s", e, _get_user_key())
         flash(f"Error loading dashboard: {e}", "error")
 
         # Provide fallback context with empty data
@@ -149,17 +149,17 @@ def refresh_posts() -> Response:
         current_app.polling_service.manual_poll()
         flash("Refreshing posts...", "info")
     except (RuntimeError, ValueError, OSError) as e:
-        logger.error("Manual refresh failed: %s | user=%s", e, _get_user_key(), exc_info=True)
+        logger.exception("Manual refresh failed: %s | user=%s", e, _get_user_key())
         flash(f"Refresh failed: {e}", "error")
     return redirect(url_for("dashboard_bp.dashboard"))
 
 
 @dashboard_bp.route("/api/notifications/mark-read", methods=["POST"])
 @require_auth
-def mark_notifications_read() -> Union[Response, tuple]:
+def mark_notifications_read() -> Response | tuple:
     """Mark all notifications as read for the authenticated user."""
 
-    def action() -> Dict[str, Any]:
+    def action() -> dict[str, Any]:
         user_key = _get_user_key()
         if not user_key:
             raise ValueError("User key not found in session")
@@ -178,10 +178,10 @@ def mark_notifications_read() -> Union[Response, tuple]:
 
 @dashboard_bp.route("/api/notifications/status")
 @require_auth
-def get_notification_status() -> Union[Response, tuple]:
+def get_notification_status() -> Response | tuple:
     """Fetch current notification summary for the authenticated user."""
 
-    def action() -> Dict[str, Any]:
+    def action() -> dict[str, Any]:
         user_key = _get_user_key()
         if not user_key:
             raise ValueError("User key not found in session")
@@ -209,10 +209,10 @@ def get_notification_status() -> Union[Response, tuple]:
 
 @dashboard_bp.route("/api/test-notification", methods=["POST"])
 @require_auth
-def send_test_notification() -> Union[Response, tuple]:
+def send_test_notification() -> Response | tuple:
     """Sends a test notification via service to subscribers."""
 
-    def action() -> Dict[str, Any]:
+    def action() -> dict[str, Any]:
         notif = current_app.notification_service.create_test_notification()
         return {"notification": notif}
 
@@ -220,7 +220,7 @@ def send_test_notification() -> Union[Response, tuple]:
 
 
 @dashboard_bp.route("/api/session/validate")
-def validate_session_api() -> Union[Response, tuple]:
+def validate_session_api() -> Response | tuple:
     """Validate user session and return status."""
     user = session.get("user")
     token = request.cookies.get("access_token")
@@ -259,23 +259,22 @@ def user_photo() -> Response:
 
 @dashboard_bp.route("/api/notifications/settings", methods=["GET"])
 @require_auth
-def get_notification_settings() -> Union[Response, tuple]:
+def get_notification_settings() -> Response | tuple:
     """Get current notification settings."""
 
-    def action() -> Dict[str, Any]:
+    def action() -> dict[str, Any]:
         key = _get_user_key()
-        settings = current_app.notification_service.get_settings(key)
-        return settings
+        return current_app.notification_service.get_settings(key)
 
     return _json_response(action)
 
 
 @dashboard_bp.route("/api/notifications/settings", methods=["POST"])
 @require_auth
-def save_notification_settings() -> Union[Response, tuple]:
+def save_notification_settings() -> Response | tuple:
     """Save new notification settings."""
 
-    def action() -> Dict[str, bool]:
+    def action() -> dict[str, bool]:
         key = _get_user_key()
         data = request.get_json()
         if not data:

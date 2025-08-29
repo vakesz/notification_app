@@ -4,8 +4,9 @@ import logging
 import os
 from logging import Formatter
 from logging.handlers import RotatingFileHandler
+from pathlib import Path
 
-from flask import Flask, jsonify, request, session
+from flask import Flask, Response, jsonify, request, session
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_wtf import CSRFProtect
@@ -61,12 +62,15 @@ def create_app(config_name: str = "default") -> Flask:
 
     CSRFProtect(flask_app)
 
-    # TODO: Configure Flask-Limiter to use Redis storage backend instead of in-memory storage
-    # Should use RATE_LIMIT_STORAGE_URL from environment variables for production use
-    # Example: limiter = Limiter(..., storage_uri=flask_app.config.get("RATE_LIMIT_STORAGE_URL"))
+    # For production, configure Flask-Limiter to use a Redis storage backend
+    # via RATE_LIMIT_STORAGE_URL environment variable.
 
     # Initialize rate limiter
-    limiter = Limiter(app=flask_app, key_func=get_remote_address, default_limits=["200 per day", "50 per hour"])
+    limiter = Limiter(
+        app=flask_app,
+        key_func=get_remote_address,
+        default_limits=["200 per day", "50 per hour"],
+    )
 
     # Initialize dashboard limiter
     dashboard_limiter.init_app(flask_app)
@@ -77,12 +81,12 @@ def create_app(config_name: str = "default") -> Flask:
     try:
         config_cls.validate()
     except ValueError as err:
-        flask_app.logger.error("Configuration validation failed: %s", err)
+        flask_app.logger.exception("Configuration validation failed: %s", err)
         raise
 
     # Prepare database path
     db_path = flask_app.config["APP_DATABASE_PATH"]
-    os.makedirs(os.path.dirname(db_path), exist_ok=True)
+    Path(db_path).parent.mkdir(parents=True, exist_ok=True)
 
     # Initialize core services
     auth_service = AuthService(
@@ -129,7 +133,7 @@ def create_app(config_name: str = "default") -> Flask:
 
     # Security headers
     @flask_app.after_request
-    def add_security_headers(response):
+    def add_security_headers(response: Response) -> Response:
         # Baseline headers
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("X-Frame-Options", "DENY")
@@ -152,7 +156,10 @@ def create_app(config_name: str = "default") -> Flask:
 
         # HSTS only under production/HTTPS contexts
         if os.getenv("FLASK_ENV", "").lower() == "production":
-            response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload")
+            response.headers.setdefault(
+                "Strict-Transport-Security",
+                "max-age=31536000; includeSubDomains; preload",
+            )
         return response
 
     # CLI commands
@@ -221,7 +228,7 @@ def create_app(config_name: str = "default") -> Flask:
             flask_app.logger.info("Subscription removed: %s", sub.get("endpoint", "unknown"))
             return jsonify({"message": "Subscription removed"}), 200
         except (ValueError, TypeError, KeyError) as e:
-            flask_app.logger.error("Deregister error: %s", e)
+            flask_app.logger.exception("Deregister error: %s", e)
             return jsonify({"error": str(e)}), 500
 
     @flask_app.route("/notify", methods=["GET"])
@@ -232,9 +239,8 @@ def create_app(config_name: str = "default") -> Flask:
         if flask_app.notification_service.create_test_notification():
             flask_app.logger.info("Test notification sent successfully")
             return jsonify({"message": "Notification sent"}), 200
-        else:
-            flask_app.logger.error("Failed to send test notification")
-            return jsonify({"error": "Failed to send notification"}), 500
+        flask_app.logger.error("Failed to send test notification")
+        return jsonify({"error": "Failed to send notification"}), 500
 
     flask_app.logger.info("Application initialized successfully")
     return flask_app

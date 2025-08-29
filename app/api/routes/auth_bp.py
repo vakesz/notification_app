@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 # --- Helper Functions ---
 
 
-def _clear_session(message: str = None, category: str = "info"):
+def _clear_session(message: str | None = None, category: str = "info"):
     """Clear the session and optionally flash a message."""
     session.clear()
     if message:

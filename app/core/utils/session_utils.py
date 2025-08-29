@@ -5,7 +5,6 @@ import secrets
 import time
 from functools import wraps
 from threading import Lock
-from typing import Optional
 
 from cryptography.fernet import Fernet, InvalidToken
 from flask import current_app, redirect, session, url_for
@@ -22,7 +21,7 @@ class AccessTokenStore:
         key = Config.TOKEN_ENCRYPTION_KEY
         self._cipher = Fernet(key) if key else None
 
-    def set_token(self, token: Optional[str]) -> None:
+    def set_token(self, token: str | None) -> None:
         """Store the access token in the session and database."""
         if token is None:
             self.clear_token()
@@ -37,7 +36,7 @@ class AccessTokenStore:
             token = self._cipher.encrypt(token.encode()).decode()
         current_app.database_manager.store_token(sid, user_id, token)
 
-    def get_token(self) -> Optional[str]:
+    def get_token(self) -> str | None:
         """Retrieve the access token from the session or database."""
         sid = session.get("_sid")
         if not sid:

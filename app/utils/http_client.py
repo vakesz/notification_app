@@ -1,7 +1,8 @@
 """HTTP client utilities for making requests with session management."""
 
 import logging
-from typing import Any, Callable, Dict, Optional
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
 import requests
@@ -9,9 +10,11 @@ from requests.adapters import HTTPAdapter
 from requests_ntlm import HttpNtlmAuth
 from urllib3.util.retry import Retry
 
-from app.core.blog_security import BlogAuthentication
 from app.core.config import Config
 from app.version import __version__ as version
+
+if TYPE_CHECKING:  # pragma: no cover - imported for type checking only
+    from app.core.blog_security import BlogAuthentication
 
 logger = logging.getLogger(__name__)
 
@@ -26,14 +29,14 @@ class HTTPClient:
     def __init__(
         self,
         base_url: str,
-        client_id: str = None,
-        client_secret: str = None,
-        tenant_id: str = None,
+        client_id: str | None = None,
+        client_secret: str | None = None,
+        tenant_id: str | None = None,
         timeout: int = 30,
-        auth_provider: Optional[Callable[[], Optional[Any]]] = None,
+        auth_provider: Callable[[], Any | None] | None = None,
         max_retries: int = Config.HTTP_MAX_RETRIES,
         backoff_factor: float = Config.HTTP_RETRY_BACKOFF,
-    ):
+    ) -> None:
         """Initialize HTTP client with configuration."""
         self.base_url = base_url.rstrip("/")
         self.client_id = client_id
@@ -73,7 +76,7 @@ class HTTPClient:
             }
         )
 
-    def _apply_auth(self, headers: Dict[str, str]) -> Dict[str, str]:
+    def _apply_auth(self, headers: dict[str, str]) -> dict[str, str]:
         """Apply blog API authentication if configured."""
         if not self._auth_provider:
             self.session.auth = None
@@ -103,10 +106,7 @@ class HTTPClient:
                 domain = creds.get("domain") or parsed.hostname
                 path = creds.get("path", "/")
                 for cname, cval in cookie_map.items():
-                    try:
-                        self.session.cookies.set(cname, cval, domain=domain, path=path)
-                    except Exception as exc:
-                        logger.warning("Failed to set cookie %s for domain %s: %s", cname, domain, exc)
+                    self._set_cookie_safely(cname, cval, domain=domain, path=path)
             self.session.auth = None
         else:
             logger.warning("Unsupported blog auth credentials: %s", type(creds))
@@ -119,48 +119,55 @@ class HTTPClient:
         path = path.lstrip("/")
         return f"{self.base_url}/{path}"
 
+    def _set_cookie_safely(self, name: str, value: str, *, domain: str | None, path: str) -> None:
+        """Set a cookie on the session while guarding against cookie errors."""
+        try:
+            # RequestsCookieJar delegates to http.cookiejar which may raise CookieError/ValueError
+            self.session.cookies.set(name, value, domain=domain, path=path)
+        except (ValueError, TypeError) as exc:
+            logger.warning(
+                "Failed to set cookie %s for domain %s: %s",
+                name,
+                domain,
+                exc,
+            )
+
     def _handle_response(self, response: requests.Response) -> str:
         """Handle HTTP response and raise appropriate exceptions."""
         try:
             response.raise_for_status()
-
-            # Check if response has content
-            if not response.text.strip():
-                logger.warning("Received empty response")
-                return ""
-
-            # Return response text if successful
-            return response.text
-
         except requests.exceptions.HTTPError as e:
             if response.status_code == 403:
                 error_msg = f"Access forbidden (403) - the server is blocking our requests. URL: {response.url}"
-                logger.error(error_msg)
+                logger.exception(error_msg)
                 logger.info("Try using a VPN or different network if this persists")
             elif response.status_code == 429:
                 error_msg = f"Rate limited (429) - too many requests. URL: {response.url}"
-                logger.error(error_msg)
+                logger.exception(error_msg)
             else:
                 error_msg = f"HTTP {response.status_code} error: {e}"
-                logger.error(error_msg)
+                logger.exception(error_msg)
             raise HTTPClientError(error_msg) from e
-        except Exception as e:
-            error_msg = f"Request failed: {e}"
-            logger.error(error_msg)
-            raise HTTPClientError(error_msg) from e
+
+        # Check if response has content
+        if not response.text.strip():
+            logger.warning("Received empty response")
+            return ""
+
+        # Return response text if successful
+        return response.text
 
     def get(
         self,
         path: str = "",
-        headers: Optional[Dict[str, str]] = None,
-        timeout: Optional[int] = None,
-        params: Optional[Dict[str, Any]] = None,
+        headers: dict[str, str] | None = None,
+        timeout: int | None = None,
+        params: dict[str, Any] | None = None,
     ) -> str:
         """Make GET request."""
         url = self._build_url(path) if path else self.base_url
 
-        # TODO: Expose header customization to callers so additional headers can
-        #       be set without modifying this method.
+        # Refresh default headers before each request
         self._update_headers()
 
         request_headers = self.session.headers.copy()
@@ -180,10 +187,10 @@ class HTTPClient:
             return self._handle_response(response)
         except requests.exceptions.RequestException as e:
             error_msg = f"GET request failed: {e}"
-            logger.error(error_msg)
+            logger.exception(error_msg)
             raise HTTPClientError(error_msg) from e
 
-    def close(self):
+    def close(self) -> None:
         """Close the session and release resources."""
         self.session.close()
 
@@ -191,7 +198,7 @@ class HTTPClient:
 class BlogClient(HTTPClient):
     """Client for interacting with the blog API."""
 
-    def __init__(self, *args, blog_auth: Optional["BlogAuthentication"] = None, **kwargs):
+    def __init__(self, *args: Any, blog_auth: "BlogAuthentication | None" = None, **kwargs: Any) -> None:
         provider = blog_auth.blog_auth if blog_auth else None
         super().__init__(*args, auth_provider=provider, **kwargs)
         self._blog_auth = blog_auth
@@ -199,11 +206,11 @@ class BlogClient(HTTPClient):
     def get_content(
         self,
         path: str = "",
-        headers: Optional[Dict[str, str]] = None,
+        headers: dict[str, str] | None = None,
     ) -> str:
         """Get HTML content from the blog."""
         try:
             return self.get(path=path, headers=headers)
         except HTTPClientError as e:
-            logger.error("Failed to get HTML source: %s", e)
+            logger.exception("Failed to get HTML source: %s", e)
             raise

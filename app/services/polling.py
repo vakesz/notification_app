@@ -21,22 +21,24 @@ Workflow:
 import logging
 import threading
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from functools import wraps
-from typing import Any, Dict, List
+from typing import TYPE_CHECKING, Any
 
-from apscheduler.schedulers.background import BackgroundScheduler  # type: ignore
+from apscheduler.schedulers.background import BackgroundScheduler
 
 from app.core.config import Config
 from app.db.database import DatabaseManager
 from app.db.models import Post
-from app.services.notification import (  # pylint: disable=unused-import
-    NotificationService,
-)
 from app.services.parser import ContentParser
 from app.utils.http_client import BlogClient, HTTPClientError
 
-# import is used only as a type‐hint
+if TYPE_CHECKING:
+    from app.services.notification import (
+        NotificationService,
+    )
+
+# import is used only as a typehint
 
 logger = logging.getLogger(__name__)
 
@@ -106,7 +108,7 @@ class PollingService:
         self.rate_limit_period = rate_limit_period
 
         self._lock = threading.Lock()
-        self._last_poll_time: datetime = None  # type: ignore
+        self._last_poll_time: datetime = None
         self._last_error = None
         self._is_polling = False
         self._retry_count = 0
@@ -149,7 +151,11 @@ class PollingService:
             if new_posts and self.notifier:
                 # Create notifications for each new post
                 notifications = self.notifier.create_bulk_notification(new_posts)
-                logger.info("Created %d notifications for %d new posts", len(notifications), len(new_posts))
+                logger.info(
+                    "Created %d notifications for %d new posts",
+                    len(notifications),
+                    len(new_posts),
+                )
             self._last_error = ""
             self._retry_count = 0
         except (HTTPClientError, ValueError, TypeError) as e:
@@ -168,7 +174,7 @@ class PollingService:
             logger.error("Cleanup failed: %s", e)
 
     @rate_limit(calls=10, period=60)
-    def _poll_once(self) -> List[Post]:
+    def _poll_once(self) -> list[Post]:
         """Fetch and process new posts once.
 
         Returns a list of new posts that were added to the database."""
@@ -179,22 +185,22 @@ class PollingService:
                 return []
             self._is_polling = True
 
-        new_posts: List[Post] = []
+        new_posts: list[Post] = []
         try:
             html = self.client.get_content()
             posts = self.parser.parse_html_content(html)
-            self._last_poll_time = datetime.utcnow()
+            self._last_poll_time = datetime.now(timezone.utc)
             if posts:
                 new_posts = self._process_posts(posts)
         finally:
             self._is_polling = False
         return new_posts
 
-    def _process_posts(self, posts: List[Post]) -> List[Post]:
+    def _process_posts(self, posts: list[Post]) -> list[Post]:
         """Insert only new posts and create notifications for them.
 
         Returns a list of posts that were added."""
-        new_posts: List[Post] = []
+        new_posts: list[Post] = []
         added = self.db.add_posts_bulk(posts)
         for post in added:
             if post.id is None:
@@ -211,7 +217,7 @@ class PollingService:
                     else:
                         logger.warning("Failed to create notification for post %s", post.id)
                 except (ValueError, TypeError, RuntimeError) as e:
-                    logger.error("Error creating notification for post %s: %s", post.id, e)
+                    logger.exception("Error creating notification for post %s: %s", post.id, e)
 
             new_posts.append(post)
 
@@ -225,13 +231,13 @@ class PollingService:
             return
 
         try:
-            job.modify(next_run_time=datetime.utcnow())
+            job.modify(next_run_time=datetime.now(timezone.utc))
             logger.info("Manual poll scheduled")
         except (ValueError, RuntimeError) as e:
-            logger.error("Unable to schedule manual poll: %s", e)
+            logger.exception("Unable to schedule manual poll: %s", e)
             self._last_error = str(e)
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Return current status of the polling service."""
         return {
             "is_running": self.scheduler.running,

@@ -1,11 +1,11 @@
 """Database connection and operations."""
 
-from contextlib import contextmanager
-from datetime import datetime
 import json
 import logging
 import sqlite3
 import threading
+from contextlib import contextmanager
+from datetime import datetime, timezone
 from typing import Any
 
 from app.core.config import Config
@@ -18,7 +18,7 @@ class DatabaseError(Exception):
     """Custom exception raised for database operation failures."""
 
 
-# TODO: Consider using a different approach with SQLAlchemy or another ORM for better abstraction and ease of use.
+# TODO @vakesz: Consider using a different approach with SQLAlchemy or another ORM for better abstraction.
 class DatabaseManager:
     """
     Simplified manager for SQLite database operations
@@ -155,7 +155,7 @@ class DatabaseManager:
             self._conn = None
 
     @contextmanager
-    def _transaction(self) -> sqlite3.Connection:  # type: ignore
+    def _transaction(self) -> sqlite3.Connection:
         """
         Context manager for a database transaction.
         Automatically commits on success or rolls back on error.
@@ -268,7 +268,7 @@ class DatabaseManager:
                 post.id,
                 post.title,
                 post.content,
-                post.publish_date.strftime("%Y-%m-%d %H:%M:%S") if post.publish_date else None,
+                (post.publish_date.strftime("%Y-%m-%d %H:%M:%S") if post.publish_date else None),
                 post.category,
                 post.department,
                 post.location,
@@ -295,7 +295,7 @@ class DatabaseManager:
             if existing and existing.title == post.title and existing.content == post.content:
                 return False
 
-            utc_time_now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+            utc_time_now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
             created_at = existing.created_at if existing else utc_time_now
 
             self._upsert_post(post, created_at, utc_time_now, conn)
@@ -319,7 +319,7 @@ class DatabaseManager:
                 if existing and existing.title == post.title and existing.content == post.content:
                     continue
 
-                utc_time_now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+                utc_time_now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
                 created_at = existing.created_at if existing else utc_time_now
 
                 self._upsert_post(post, created_at, utc_time_now, conn)
@@ -379,7 +379,7 @@ class DatabaseManager:
             notif.image_url,
             notif.created_at.strftime("%Y-%m-%d %H:%M:%S"),
             notif.is_urgent,
-            notif.expires_at.strftime("%Y-%m-%d %H:%M:%S") if notif.expires_at else None,
+            (notif.expires_at.strftime("%Y-%m-%d %H:%M:%S") if notif.expires_at else None),
         )
         cursor = self._execute(sql, params)
         return cursor.lastrowid if cursor else None
@@ -413,7 +413,7 @@ class DatabaseManager:
 
         if not include_expired:
             query += " AND (n.expires_at IS NULL OR n.expires_at > ?)"
-            params.append(datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"))
+            params.append(datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"))
 
         query += " ORDER BY n.created_at DESC LIMIT ?"
         params.append(limit)
@@ -480,7 +480,10 @@ class DatabaseManager:
         return cursor.rowcount if cursor else 0
 
     def add_push_subscription(
-        self, info: dict[str, Any], user_key: str | None = None, device_id: str | None = None
+        self,
+        info: dict[str, Any],
+        user_key: str | None = None,
+        device_id: str | None = None,
     ) -> bool:
         """
         Insert or update a push subscription record.
@@ -493,7 +496,7 @@ class DatabaseManager:
         Returns:
             bool: True if operation succeeds.
         """
-        now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+        now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
 
         # Generate device_id from endpoint if not provided for backward compatibility
         if device_id is None:
@@ -529,7 +532,10 @@ class DatabaseManager:
         return row is not None
 
     def remove_push_subscription(
-        self, info: dict[str, Any], user_key: str | None = None, device_id: str | None = None
+        self,
+        info: dict[str, Any],
+        user_key: str | None = None,
+        device_id: str | None = None,
     ) -> bool:
         """
         Remove a push subscription by its endpoint and device_id for multi-device support.
@@ -557,7 +563,7 @@ class DatabaseManager:
                     (info["endpoint"], user_key, device_id),
                 )
             )
-        elif device_id:
+        if device_id:
             # Remove by device_id and endpoint (fallback)
             return bool(
                 self._execute(
@@ -565,13 +571,17 @@ class DatabaseManager:
                     (info["endpoint"], device_id),
                 )
             )
-        else:
-            # Endpoint-only removal (legacy fallback - logs warning)
-            logger.warning(
-                "Removing push subscription by endpoint only. "
-                "Consider providing device_id for better multi-device support."
+        # Endpoint-only removal (legacy fallback - logs warning)
+        logger.warning(
+            "Removing push subscription by endpoint only. "
+            "Consider providing device_id for better multi-device support."
+        )
+        return bool(
+            self._execute(
+                "DELETE FROM push_subscriptions WHERE endpoint = ?",
+                (info["endpoint"],),
             )
-            return bool(self._execute("DELETE FROM push_subscriptions WHERE endpoint = ?", (info["endpoint"],)))
+        )
 
     def update_subscription_last_used(self, endpoint: str) -> bool:
         """Update the last_used timestamp for a push subscription."""
@@ -953,7 +963,10 @@ class DatabaseManager:
             # user_notifications cleanup automatically, but we'll be explicit
             with self._transaction() as conn:
                 # First delete user notification entries
-                conn.execute("DELETE FROM user_notifications WHERE notification_id = ?", (notification_id,))
+                conn.execute(
+                    "DELETE FROM user_notifications WHERE notification_id = ?",
+                    (notification_id,),
+                )
 
                 # Then delete the notification itself
                 cursor = conn.execute("DELETE FROM notifications WHERE id = ?", (notification_id,))
@@ -998,7 +1011,7 @@ class DatabaseManager:
                                         sub["user_key"],
                                         notif["id"],
                                         1,
-                                        datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
+                                        datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
                                     ),
                                 )
 
@@ -1093,7 +1106,12 @@ class DatabaseManager:
 
         total_cleaned = sum(cleanup_counts.values())
         if total_cleaned > 0:
-            logger.info("Cleaned up %d total records for user %s: %s", total_cleaned, user_id, cleanup_counts)
+            logger.info(
+                "Cleaned up %d total records for user %s: %s",
+                total_cleaned,
+                user_id,
+                cleanup_counts,
+            )
 
         return cleanup_counts
 

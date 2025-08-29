@@ -2,8 +2,8 @@
 
 import hashlib
 from dataclasses import dataclass
-from datetime import datetime, timedelta
-from typing import Any, Dict, Optional
+from datetime import datetime, timedelta, timezone
+from typing import Any
 
 
 @dataclass
@@ -16,15 +16,15 @@ class Post:
     location: str
     department: str
     category: str
-    id: Optional[str] = None
-    link: Optional[str] = None
+    id: str | None = None
+    link: str | None = None
     is_urgent: bool = False
     likes: int = 0
     comments: int = 0
     has_image: bool = False
-    image_url: Optional[str] = None
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
+    image_url: str | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
 
     def __post_init__(self) -> None:
         # Validate required fields
@@ -52,15 +52,18 @@ class Post:
         return f"{digest}-{timestamp}"
 
     @classmethod
-    def from_database_row(cls, data: Dict[str, Any]) -> "Post":
+    def from_database_row(cls, data: dict[str, Any]) -> "Post":
         """Create a Post instance from a database row dictionary."""
-        # Handle datetime fields
+        # Handle datetime fields and normalize to UTC-aware
         if isinstance(data.get("publish_date"), str):
-            data["publish_date"] = datetime.fromisoformat(data["publish_date"])
+            dt = datetime.fromisoformat(data["publish_date"])
+            data["publish_date"] = dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt.astimezone(timezone.utc)
         if isinstance(data.get("created_at"), str):
-            data["created_at"] = datetime.fromisoformat(data["created_at"])
+            dt = datetime.fromisoformat(data["created_at"])
+            data["created_at"] = dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt.astimezone(timezone.utc)
         if isinstance(data.get("updated_at"), str):
-            data["updated_at"] = datetime.fromisoformat(data["updated_at"])
+            dt = datetime.fromisoformat(data["updated_at"])
+            data["updated_at"] = dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt.astimezone(timezone.utc)
 
         # Filter out any extra fields that aren't part of the dataclass
         valid_fields = {
@@ -84,13 +87,13 @@ class Post:
 
         return cls(**filtered_data)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert post to dictionary for JSON serialization."""
         return {
             "id": self.id,
             "title": self.title,
             "content": self.content,
-            "publish_date": self.publish_date.isoformat() if self.publish_date else None,
+            "publish_date": (self.publish_date.isoformat() if self.publish_date else None),
             "location": self.location,
             "department": self.department,
             "category": self.category,
@@ -113,10 +116,10 @@ class Notification:
     title: str
     message: str
     created_at: datetime
-    id: Optional[str] = None
+    id: str | None = None
     is_urgent: bool = False
-    expires_at: Optional[datetime] = None
-    image_url: Optional[str] = "static/img/notification/icon-notification.png"
+    expires_at: datetime | None = None
+    image_url: str | None = "static/img/notification/icon-notification.png"
 
     def __post_init__(self) -> None:
         """Validate and initialize the notification."""
@@ -143,14 +146,15 @@ class Notification:
         return f"notif-{hashlib.sha256(base.encode()).hexdigest()[:8]}"
 
     @classmethod
-    def from_database_row(cls, data: Dict[str, Any]) -> "Notification":
+    def from_database_row(cls, data: dict[str, Any]) -> "Notification":
         """Create a Notification instance from a database row dictionary."""
         for key in ("created_at", "expires_at"):
             if isinstance(data.get(key), str):
-                data[key] = datetime.fromisoformat(data[key])
+                dt = datetime.fromisoformat(data[key])
+                data[key] = dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt.astimezone(timezone.utc)
         return cls(**data)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert notification to dictionary for JSON serialization."""
         return {
             "id": getattr(self, "id", None),
@@ -171,9 +175,9 @@ class UserNotification:
     user_id: str
     notification_id: str
     is_read: bool = False
-    read_at: Optional[datetime] = None
-    created_at: Optional[datetime] = None
-    id: Optional[str] = None
+    read_at: datetime | None = None
+    created_at: datetime | None = None
+    id: str | None = None
 
     def __post_init__(self) -> None:
         """Validate the user notification."""
@@ -186,22 +190,30 @@ class UserNotification:
 
         # Set created_at if not provided
         if self.created_at is None:
-            self.created_at = datetime.now()
+            self.created_at = datetime.now(timezone.utc)
 
     @classmethod
-    def from_database_row(cls, data: Dict[str, Any]) -> "UserNotification":
+    def from_database_row(cls, data: dict[str, Any]) -> "UserNotification":
         """Create a UserNotification instance from a database row dictionary."""
         for key in ("read_at", "created_at"):
             if isinstance(data.get(key), str):
-                data[key] = datetime.fromisoformat(data[key])
+                dt = datetime.fromisoformat(data[key])
+                data[key] = dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt.astimezone(timezone.utc)
 
         # Filter out any extra fields that aren't part of the dataclass
-        valid_fields = {"id", "user_id", "notification_id", "is_read", "read_at", "created_at"}
+        valid_fields = {
+            "id",
+            "user_id",
+            "notification_id",
+            "is_read",
+            "read_at",
+            "created_at",
+        }
         filtered_data = {k: v for k, v in data.items() if k in valid_fields}
 
         return cls(**filtered_data)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert user notification to dictionary for JSON serialization."""
         return {
             "id": self.id,

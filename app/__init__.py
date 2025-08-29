@@ -4,7 +4,7 @@
 # modules import ``app`` for metadata such as the version.
 from .version import __version__  # re-export for ``app.__version__``
 
-__all__ = ["create_app", "__version__"]
+__all__ = ["__version__", "create_app"]
 
 
 def create_app(config_name: str = "default"):

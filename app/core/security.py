@@ -2,7 +2,7 @@
 
 import logging
 import re
-from typing import Any, Dict
+from typing import Any
 from urllib.parse import quote
 
 import requests
@@ -44,7 +44,7 @@ class AuthService:
             logger.error("Error generating authorization URL: %s", e)
             raise RuntimeError("Failed to generate authorization URL") from e
 
-    def acquire_token(self, authorization_code: str) -> Dict[str, Any]:
+    def acquire_token(self, authorization_code: str) -> dict[str, Any]:
         """Acquire token using authorization code."""
         try:
             result = self.msal_app.acquire_token_by_authorization_code(
@@ -68,7 +68,7 @@ class AuthService:
         encoded_uri = quote(post_logout_redirect_uri, safe="")
         return f"{self.authority}/oauth2/v2.0/logout?post_logout_redirect_uri={encoded_uri}"
 
-    def validate_user(self, user_claims: Dict[str, Any]) -> bool:
+    def validate_user(self, user_claims: dict[str, Any]) -> bool:
         """Validate user claims with content validation."""
         # Check required fields
         required_fields = ["name", "preferred_username"]
@@ -116,7 +116,7 @@ class AuthService:
 
         return True
 
-    def get_user_info(self, access_token: str) -> Dict[str, Any]:
+    def get_user_info(self, access_token: str) -> dict[str, Any]:
         """Get user information from Microsoft Graph API."""
         try:
             headers = {
@@ -156,7 +156,7 @@ class AuthService:
             logger.error("Unexpected error while fetching user info: %s", e)
             return None
 
-    def get_user_claims(self, access_token: str) -> Dict[str, Any]:
+    def get_user_claims(self, access_token: str) -> dict[str, Any]:
         """Get user claims from the access token."""
         try:
             headers = {

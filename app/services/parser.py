@@ -2,8 +2,7 @@
 
 import logging
 import re
-from datetime import datetime
-from typing import List, Optional
+from datetime import datetime, timezone
 
 from bs4 import BeautifulSoup
 from dateutil import parser as date_parser
@@ -17,7 +16,7 @@ logger = logging.getLogger(__name__)
 class ContentParser:
     """Parses HTML content to extract blog posts."""
 
-    def parse_html_content(self, html_content: str) -> List[Post]:
+    def parse_html_content(self, html_content: str) -> list[Post]:
         """Parse HTML content to extract posts."""
         if not html_content or not html_content.strip():
             logger.warning("Empty HTML content provided")
@@ -45,7 +44,7 @@ class ContentParser:
         logger.debug("Successfully parsed %d posts", len(posts))
         return posts
 
-    def _parse_post_block(self, block) -> Optional[Post]:
+    def _parse_post_block(self, block) -> Post | None:
         """Parse individual post block using BeautifulSoup."""
         try:
             tooltip_div = block.find("div", class_="oldtooltip")
@@ -154,7 +153,7 @@ class ContentParser:
     def _parse_date(self, date_str: str) -> datetime:
         """Parse date string to datetime object."""
         if not date_str or date_str == "Unknown":
-            return datetime.now()
+            return datetime.now(timezone.utc)
 
         # Common date formats found in blog posts
         date_formats = [
@@ -171,12 +170,16 @@ class ContentParser:
 
         for fmt in date_formats:
             try:
-                return datetime.strptime(date_str, fmt)
+                return datetime.strptime(date_str, fmt).replace(tzinfo=timezone.utc)
             except ValueError:
                 continue
 
         try:
-            return date_parser.parse(date_str, fuzzy=True)
+            dt = date_parser.parse(date_str, fuzzy=True)
+            # Normalize to UTC; assume UTC if no tz info present
+            if dt.tzinfo is None:
+                return dt.replace(tzinfo=timezone.utc)
+            return dt.astimezone(timezone.utc)
         except (ValueError, TypeError):
             pass
 
@@ -185,10 +188,10 @@ class ContentParser:
         if year_match:
             try:
                 year = int(year_match.group(1))
-                return datetime(year, 1, 1)
+                return datetime(year, 1, 1, tzinfo=timezone.utc)
             except ValueError:
                 pass
 
         # Fallback to current datetime
         logger.warning("Could not parse date '%s', using current datetime", date_str)
-        return datetime.now()
+        return datetime.now(timezone.utc)
