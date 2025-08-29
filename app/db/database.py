@@ -455,9 +455,7 @@ class DatabaseManager:
 
         # Check if user is trying to access notifications they don't own
         unauthorized_ids = set(notification_ids) - set(owned_ids)
-        if unauthorized_ids:
-            raise DatabaseError(
-                f"403 Forbidden: Cannot access notifications {list(unauthorized_ids)} for user {user_id}"
+                "403 Forbidden: Cannot access one or more requested notifications."
             )
 
         # Mark notifications as read only for this user
