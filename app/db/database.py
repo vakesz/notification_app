@@ -201,11 +201,10 @@ class DatabaseManager:
             conn.execute("CREATE INDEX IF NOT EXISTS idx_notifications_expires ON notifications(expires_at)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_notifications_created ON notifications(created_at)")
             conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_user_notifications_user_read " "ON user_notifications(user_id, is_read)"
+                "CREATE INDEX IF NOT EXISTS idx_user_notifications_user_read ON user_notifications(user_id, is_read)"
             )
             conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_user_notifications_notification "
-                "ON user_notifications(notification_id)"
+                "CREATE INDEX IF NOT EXISTS idx_user_notifications_notification ON user_notifications(notification_id)"
             )
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user_device "
@@ -573,8 +572,7 @@ class DatabaseManager:
             )
         # Endpoint-only removal (legacy fallback - logs warning)
         logger.warning(
-            "Removing push subscription by endpoint only. "
-            "Consider providing device_id for better multi-device support."
+            "Removing push subscription by endpoint only. Consider providing device_id for better multi-device support."
         )
         return bool(
             self._execute(
@@ -851,10 +849,7 @@ class DatabaseManager:
         Returns:
             bool: True if update succeeds, False otherwise.
         """
-        sql = (
-            "UPDATE user_notifications SET is_read = 1, read_at = CURRENT_TIMESTAMP "
-            "WHERE user_id = ? AND is_read = 0"
-        )
+        sql = "UPDATE user_notifications SET is_read = 1, read_at = CURRENT_TIMESTAMP WHERE user_id = ? AND is_read = 0"
         cursor = self._execute(sql, (user_id,))
         return cursor.rowcount > 0 if cursor else False
 

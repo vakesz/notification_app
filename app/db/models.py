@@ -43,9 +43,7 @@ class Post:
     def _generate_id(self) -> str:
         """Create a short, deterministic ID."""
         hash_input = (
-            f"{self.title}{self.content}"
-            f"{self.publish_date.isoformat()}{self.location}"
-            f"{self.department}{self.category}"
+            f"{self.title}{self.content}{self.publish_date.isoformat()}{self.location}{self.department}{self.category}"
         )
         digest = hashlib.sha256(hash_input.encode()).hexdigest()[:8]
         timestamp = int(self.publish_date.timestamp())
