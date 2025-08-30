@@ -96,6 +96,12 @@ class BlogAuthentication:
         - BLOG_API_COOKIE_NAME / BLOG_API_COOKIE_VALUE: Fallback single cookie
         - BLOG_API_COOKIE_DOMAIN: Optional cookie domain override
         - BLOG_API_COOKIE_PATH: Optional cookie path (defaults to '/')
+        - BLOG_API_USER_AGENT: Optional override for User-Agent header
+        - BLOG_API_REFERER: Optional Referer header
+        - BLOG_API_ACCEPT / BLOG_API_ACCEPT_LANGUAGE / BLOG_API_CACHE_CONTROL /
+          BLOG_API_PRAGMA: Optional common headers
+        - BLOG_API_HEADER_*: Any additional headers using the pattern
+          BLOG_API_HEADER_ACCEPT_ENCODING="gzip, deflate" -> "Accept-Encoding: gzip, deflate"
         """
         cookie_string = os.getenv("BLOG_API_COOKIES", "").strip()
         cookies: dict[str, str] = {}
@@ -133,8 +139,50 @@ class BlogAuthentication:
 
         domain = os.getenv("BLOG_API_COOKIE_DOMAIN")
         path = os.getenv("BLOG_API_COOKIE_PATH", "/")
-        return {
+
+        # Build optional browser-like headers to better mimic a real client.
+        headers: dict[str, str] = {}
+
+        # Convenience env vars for common headers
+        ua = os.getenv("BLOG_API_USER_AGENT")
+        if ua:
+            headers["User-Agent"] = ua
+
+        referer = os.getenv("BLOG_API_REFERER")
+        if referer:
+            headers["Referer"] = referer
+
+        accept = os.getenv("BLOG_API_ACCEPT")
+        if accept:
+            headers["Accept"] = accept
+
+        accept_lang = os.getenv("BLOG_API_ACCEPT_LANGUAGE")
+        if accept_lang:
+            headers["Accept-Language"] = accept_lang
+
+        cache_control = os.getenv("BLOG_API_CACHE_CONTROL")
+        if cache_control:
+            headers["Cache-Control"] = cache_control
+
+        pragma = os.getenv("BLOG_API_PRAGMA")
+        if pragma:
+            headers["Pragma"] = pragma
+
+        # Generic BLOG_API_HEADER_* passthrough (e.g. BLOG_API_HEADER_ACCEPT_ENCODING)
+        for key, value in os.environ.items():
+            if not key.startswith("BLOG_API_HEADER_"):
+                continue
+            if not value:
+                continue
+            # Convert BLOG_API_HEADER_ACCEPT_ENCODING -> Accept-Encoding
+            hname = key[len("BLOG_API_HEADER_") :].replace("_", "-")
+            headers[hname] = value
+
+        payload: dict[str, object] = {
             "cookies": cookies,
             "domain": domain,
             "path": path,
         }
+        if headers:
+            payload["headers"] = headers
+        return payload
