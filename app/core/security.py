@@ -54,6 +54,19 @@ class AuthService:
             if "error" in result:
                 error_desc = result.get("error_description", "Unknown error")
                 logger.error("Token acquisition error: %s", error_desc)
+                if "AADSTS54005" in error_desc or "already redeemed" in error_desc.lower():
+                    logger.info("Authorization code already redeemed. Attempting silent token acquisition from cache.")
+                    try:
+                        accounts = self.msal_app.get_accounts()
+                        for acct in accounts:
+                            silent = self.msal_app.acquire_token_silent(self.scope, account=acct)
+                            if silent and "access_token" in silent and "error" not in silent:
+                                logger.info("Silent token acquisition succeeded using cached account.")
+                                return silent
+                        logger.warning("Silent acquisition failed; no suitable cached account/token found.")
+                    except Exception as se:
+                        logger.exception("Silent token acquisition error: %s", se)
+
                 raise RuntimeError(f"Token acquisition failed: {error_desc}")
 
             logger.info("Successfully acquired token")

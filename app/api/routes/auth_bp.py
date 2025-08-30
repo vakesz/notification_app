@@ -37,10 +37,13 @@ def _auth_redirect(target: str = "dashboard_bp.dashboard"):
 
 
 def _ensure_valid_session() -> bool:
-    """Check if current session is valid (user + token + validation)."""
-    user = session.get("user")
-    token = request.cookies.get("access_token")
-    return bool(user and token and _validate_session())
+    """Check if current session is valid.
+
+    Rely on server-side session validation instead of requiring
+    the presence of access token cookie as well. Cookie propagation
+    can lag during OAuth redirects and falsely appear unauthenticated.
+    """
+    return _validate_session()
 
 
 # --- Routes ---
@@ -122,7 +125,7 @@ def auth_callback():
         max_age=token_resp.get("expires_in", 3600),
         httponly=True,
         secure=True,
-        samesite="Strict",
+        samesite="Lax",
     )
     if token_resp.get("refresh_token"):
         response.set_cookie(
@@ -130,7 +133,7 @@ def auth_callback():
             token_resp["refresh_token"],
             httponly=True,
             secure=True,
-            samesite="Strict",
+            samesite="Lax",
         )
 
     # Store token globally
@@ -142,6 +145,10 @@ def auth_callback():
     if not claims:
         return _fail("Authentication failed: Could not retrieve user claims")
 
+    logger.debug(
+        "Authentication successful; redirecting to dashboard for user=%s",
+        user_info.get("preferred_username") or user_info.get("name"),
+    )
     flash("Successfully logged in!", "success")
     return response
 
